@@ -204,6 +204,14 @@ fi
 ok "Health check successful."
 
 host_ips="$(hostname -I 2>/dev/null | xargs || true)"
+lan_urls=()
+if [[ -n "${host_ips}" ]]; then
+  for ip in ${host_ips}; do
+    if [[ "${ip}" != "127.0.0.1" ]]; then
+      lan_urls+=("http://${ip}:${PORT_BIND}")
+    fi
+  done
+fi
 
 echo
 echo "============================================================"
@@ -212,8 +220,17 @@ echo "Service: ${SERVICE_NAME}.service"
 echo "Install dir: ${INSTALL_DIR}"
 echo "Data dir: ${DATA_DIR}"
 echo "URL (local): http://127.0.0.1:${PORT_BIND}"
-if [[ -n "${host_ips}" ]]; then
-  echo "Host IP(s): ${host_ips}"
+echo "------------------------------------------------------------"
+echo "WEB UI ACCESS (IMPORTANT)"
+echo "From inside container: http://127.0.0.1:${PORT_BIND}"
+if [[ ${#lan_urls[@]} -gt 0 ]]; then
+  echo "From your LAN browser (use one of these):"
+  for url in "${lan_urls[@]}"; do
+    echo "  -> ${url}"
+  done
+else
+  echo "LAN IP not detected automatically. Check with: hostname -I"
 fi
+echo "------------------------------------------------------------"
 echo "Logs: journalctl -u ${SERVICE_NAME}.service -f"
 echo "============================================================"
