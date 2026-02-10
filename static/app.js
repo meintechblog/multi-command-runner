@@ -157,12 +157,14 @@ function tickRunnerElapsed() {
   nodes.forEach((node) => {
     const rid = String(node.dataset.runnerElapsed || "");
     const rt = runtime.status[rid] || {};
-    if (rt.running && rt.started_ts) {
-      const s = formatElapsedSince(rt.started_ts, nowMs);
+    const isActive = !!rt.running || !!rt.scheduled;
+    const activeTs = String(rt.active_ts || rt.started_ts || "");
+    if (isActive && activeTs) {
+      const s = formatElapsedSince(activeTs, nowMs);
       if (s) {
         node.classList.remove("hidden");
         node.textContent = `⏱ ${s}`;
-        node.title = `Laufzeit: ${s}`;
+        node.title = `Aktiv seit: ${s}`;
         return;
       }
     }
@@ -1095,8 +1097,9 @@ function renderRunners() {
     const paused = !!rt.paused;
     const consecutiveFailures = Math.max(0, Number(rt.consecutive_failures || 0));
     const isActive = running || scheduled;
-    const elapsedText = running ? formatElapsedSince(rt.started_ts) : "";
-    const showElapsed = running && !!elapsedText;
+    const activeTs = String(rt.active_ts || rt.started_ts || "");
+    const elapsedText = isActive ? formatElapsedSince(activeTs) : "";
+    const showElapsed = isActive && !!elapsedText;
     const maxRuns = Number(r.max_runs);
     const intervalSeconds =
       ((Number(r.schedule?.hours) || 0) * 3600) +
@@ -1721,7 +1724,18 @@ function startEvents() {
       const ev = JSON.parse(msg.data);
 
       if (ev.type === "snapshot") {
-        runtime.status = ev.snapshot || {};
+        const next = ev.snapshot || {};
+        // Preserve local active timestamps if the backend snapshot doesn't include them
+        // (e.g. during a reconnect before we receive the next started event).
+        for (const rid of Object.keys(runtime.status || {})) {
+          const prev = runtime.status[rid] || {};
+          if (!prev.active_ts) continue;
+          next[rid] = next[rid] || {};
+          if (!next[rid].active_ts) {
+            next[rid].active_ts = prev.active_ts;
+          }
+        }
+        runtime.status = next;
         renderRunners();
         tickRunnerElapsed();
         updateGlobalRunningStatus();
@@ -1730,6 +1744,8 @@ function startEvents() {
 
       if (ev.type === "status") {
         const rid = ev.runner_id;
+        const prev = runtime.status[rid] || {};
+        const wasActive = !!prev.running || !!prev.scheduled;
         runtime.status[rid] = runtime.status[rid] || {};
         if (ev.consecutive_failures !== undefined) {
           runtime.status[rid].consecutive_failures = Number(ev.consecutive_failures || 0);
@@ -1739,7 +1755,17 @@ function startEvents() {
           runtime.status[rid].running = true;
           runtime.status[rid].scheduled = false;
           runtime.status[rid].paused = false;
-          runtime.status[rid].started_ts = ev.ts || new Date().toISOString();
+          const startedTs = ev.ts || new Date().toISOString();
+          runtime.status[rid].started_ts = startedTs;
+          // Keep an "active since" timestamp across scheduled runs. A manual start (was inactive)
+          // resets the active session timestamp.
+          if (ev.active_ts) {
+            runtime.status[rid].active_ts = ev.active_ts;
+          } else if (!wasActive) {
+            runtime.status[rid].active_ts = startedTs;
+          } else if (!runtime.status[rid].active_ts) {
+            runtime.status[rid].active_ts = startedTs;
+          }
           if (ev.run_count !== undefined) {
             runtime.status[rid].run_count = ev.run_count;
           }
@@ -1757,6 +1783,7 @@ function startEvents() {
             runtime.status[rid].running = false;
             runtime.status[rid].scheduled = false;
             delete runtime.status[rid].started_ts;
+            delete runtime.status[rid].active_ts;
             renderRunners();
             tickRunnerElapsed();
             updateGlobalRunningStatus();
@@ -1772,6 +1799,7 @@ function startEvents() {
           runtime.status[rid].scheduled = false;
           runtime.status[rid].paused = true;
           delete runtime.status[rid].started_ts;
+          delete runtime.status[rid].active_ts;
           runtime.status[rid].consecutive_failures = Number(ev.consecutive_failures || runtime.status[rid].consecutive_failures || 0);
           const msg = `${rid}: AUTO-PAUSE NACH ${runtime.status[rid].consecutive_failures} FEHLERN. MANUELLER RUN NEEDED.`;
           logHulk("error", msg, ev.ts);

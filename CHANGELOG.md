@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 - Pending
 
+## [2.1.5] - 2026-02-10
+
+### Fixed
+
+- Runner duration display now stays visible while a runner is active (running or scheduled), instead of disappearing after a short run.
+
 ## [2.1.4] - 2026-02-10
 
 ### Added

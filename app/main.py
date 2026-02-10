@@ -1202,6 +1202,7 @@ class RunnerManager:
         self._lock = threading.Lock()
         self._procs: Dict[str, subprocess.Popen] = {}
         self._started_ts: Dict[str, str] = {}
+        self._active_ts: Dict[str, str] = {}
         self._outputs: Dict[str, List[str]] = {}
         self._last_line: Dict[str, str] = {}
         self._stopped: Dict[str, bool] = {}
@@ -1238,6 +1239,7 @@ class RunnerManager:
                 | set(self._outputs.keys())
                 | set(self._procs.keys())
                 | set(self._started_ts.keys())
+                | set(self._active_ts.keys())
                 | set(self._timers.keys())
                 | set(self._consecutive_failures.keys())
                 | set(self._paused_due_failures.keys())
@@ -1249,6 +1251,7 @@ class RunnerManager:
                     "running": running,
                     "stopped": bool(self._stopped.get(rid, False)),
                     "started_ts": self._started_ts.get(rid, ""),
+                    "active_ts": self._active_ts.get(rid, ""),
                     "tail": "".join((self._outputs.get(rid) or [])[-200:]),
                     "remaining": self._remaining.get(rid),
                     "run_count": self._run_count.get(rid, 0),  # Current run count for infinite runners
@@ -1320,6 +1323,7 @@ class RunnerManager:
         if proc is None or proc.poll() is not None:
             with self._lock:
                 self._started_ts.pop(runner_id, None)
+                self._active_ts.pop(runner_id, None)
             self._broker.publish({"type": "status", "runner_id": runner_id, "status": "stopped", "ts": now_iso()})
             return
 
@@ -1327,6 +1331,7 @@ class RunnerManager:
 
     def start(self, cfg: RunnerRuntimeConfig, reset_schedule: bool = True) -> None:
         started_ts = ""
+        active_ts = ""
         current_run_count = 0
         current_remaining: Optional[int] = None
         with self._lock:
@@ -1372,34 +1377,41 @@ class RunnerManager:
 
             started_ts = now_iso()
             self._started_ts[cfg.runner_id] = started_ts
+            # Manual starts always begin a new "active" session.
+            active_ts = started_ts
+            self._active_ts[cfg.runner_id] = active_ts
             current_run_count = self._run_count.get(cfg.runner_id, 0)
             current_remaining = self._remaining.get(cfg.runner_id)
 
-        self._broker.publish({"type": "status", "runner_id": cfg.runner_id, "status": "started", "ts": started_ts, "run_count": current_run_count, "remaining": current_remaining})
+        self._broker.publish({"type": "status", "runner_id": cfg.runner_id, "status": "started", "ts": started_ts, "active_ts": active_ts, "run_count": current_run_count, "remaining": current_remaining})
         threading.Thread(target=self._reader_thread, args=(cfg.runner_id,), daemon=True).start()
 
-    def _schedule_next(self, runner_id: str) -> None:
+    def _schedule_next(self, runner_id: str) -> bool:
+        interval_s = 0
         with self._lock:
             cfg = self._cfg.get(runner_id)
             if cfg is None or cfg.interval_s <= 0:
-                return
+                return False
             if self._stopped.get(runner_id, False):
-                return
+                return False
             if self._paused_due_failures.get(runner_id, False):
-                return
+                return False
             rem = self._remaining.get(runner_id)
             if rem is not None and rem <= 0:
-                return
+                return False
             if runner_id in self._timers:
-                return
+                return False
+            interval_s = cfg.interval_s
             t = threading.Timer(cfg.interval_s, self._scheduled_start, args=(runner_id,))
             t.daemon = True
             self._timers[runner_id] = t
             t.start()
-        self._broker.publish({"type": "status", "runner_id": runner_id, "status": "scheduled", "in_s": cfg.interval_s, "ts": now_iso()})
+        self._broker.publish({"type": "status", "runner_id": runner_id, "status": "scheduled", "in_s": interval_s, "ts": now_iso()})
+        return True
 
     def _scheduled_start(self, runner_id: str) -> None:
         started_ts = ""
+        active_ts = ""
         current_run_count = 0
         current_remaining: Optional[int] = None
         with self._lock:
@@ -1437,8 +1449,11 @@ class RunnerManager:
             current_remaining = self._remaining.get(runner_id)
             started_ts = now_iso()
             self._started_ts[runner_id] = started_ts
+            # Scheduled runs should not reset the active session timestamp.
+            active_ts = self._active_ts.get(runner_id) or started_ts
+            self._active_ts.setdefault(runner_id, active_ts)
 
-        self._broker.publish({"type": "status", "runner_id": runner_id, "status": "started", "ts": started_ts, "run_count": current_run_count, "remaining": current_remaining})
+        self._broker.publish({"type": "status", "runner_id": runner_id, "status": "started", "ts": started_ts, "active_ts": active_ts, "run_count": current_run_count, "remaining": current_remaining})
         threading.Thread(target=self._reader_thread, args=(runner_id,), daemon=True).start()
 
     @staticmethod
@@ -1574,6 +1589,8 @@ class RunnerManager:
                 }
             )
             if pause_now:
+                with self._lock:
+                    self._active_ts.pop(runner_id, None)
                 self._broker.publish(
                     {
                         "type": "status",
@@ -1586,7 +1603,10 @@ class RunnerManager:
                     }
                 )
                 return
-            self._schedule_next(runner_id)
+            scheduled = self._schedule_next(runner_id)
+            if not scheduled:
+                with self._lock:
+                    self._active_ts.pop(runner_id, None)
 
     def _match_line_and_notify(self, runner_id: str, line: str) -> None:
         with self._lock:
@@ -1705,7 +1725,7 @@ broker = EventBroker()
 notifier = NotificationWorker(broker, store)
 rm = RunnerManager(broker, notifier)
 
-app = FastAPI(title="command-runner", version="2.1.4")
+app = FastAPI(title="command-runner", version="2.1.5")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
