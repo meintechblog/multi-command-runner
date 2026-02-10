@@ -70,7 +70,7 @@ Create container (example based on your setup):
 ```bash
 pct create 1030 \
   /var/lib/vz/template/cache/debian-12-standard_12.12-1_amd64.tar.zst \
-  --hostname hydra-lxc \
+  --hostname command-runner-lxc \
   --password 'meinpasswort' \
   --cores 1 \
   --memory 512 \
