@@ -160,7 +160,7 @@ if [[ "${ENABLE_BASIC_AUTH}" == "1" ]]; then
     upsert_env "COMMAND_RUNNER_AUTH_USER" "${current_auth_user}" "${ENV_FILE}"
   fi
   if [[ -z "${current_auth_pass}" ]]; then
-    generated_auth_password="$(python3 -c 'import secrets,string; alphabet=string.ascii_letters + string.digits; print(\"\".join(secrets.choice(alphabet) for _ in range(20)))')"
+    generated_auth_password="$(python3 -c 'import secrets,string; alphabet=string.ascii_letters + string.digits; print("".join(secrets.choice(alphabet) for _ in range(20)))')"
     upsert_env "COMMAND_RUNNER_AUTH_PASSWORD" "${generated_auth_password}" "${ENV_FILE}"
     current_auth_pass="${generated_auth_password}"
   fi
