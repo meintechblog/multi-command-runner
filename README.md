@@ -47,6 +47,16 @@ Open:
 
 - `http://127.0.0.1:8080`
 
+## One-Liner Installer (Fresh Debian/LXC)
+
+```bash
+apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/install.sh | bash
+```
+
+Installer script location:
+
+- `scripts/install.sh`
+
 ## Configuration
 
 Environment variables:

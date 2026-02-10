@@ -2,6 +2,29 @@
 
 This guide targets Debian/Ubuntu-based Linux (including LXC containers).
 
+## Automated One-Liner Install (Fresh LXC)
+
+Run this inside the new container as `root`:
+
+```bash
+apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/install.sh | bash
+```
+
+What this installer does automatically:
+
+- installs required OS packages
+- clones/updates repo to `/opt/command-runner`
+- creates `.venv` and installs Python dependencies
+- creates/updates `.env` including generated `COMMAND_RUNNER_SECRET_KEY`
+- installs and starts `command-runner.service` (systemd)
+- runs API health check and prints access URL/log commands
+
+Optional overrides (example):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/install.sh | REPO_BRANCH=main PORT_BIND=8090 INSTALL_DIR=/opt/command-runner bash
+```
+
 ## 0) Proxmox LXC (Recommended Homelab Setup)
 
 If you run `command-runner` on Proxmox, an unprivileged Debian 12 LXC is a good default.
