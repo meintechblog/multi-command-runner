@@ -11,19 +11,14 @@
       <header class="row between center" id="topHeader">
         <h1 id="openInfoTitle" class="titleInfoTrigger" role="button" tabindex="0" title="Öffnet die Programm-Info">command-runner</h1>
         <div class="headerRight">
-          <div class="row gap center wrapline">
-            <div class="langSwitch" id="langSwitch" aria-label="Sprache">
-              <button id="langDeBtn" class="btn" type="button" title="Deutsch">DE</button>
-              <button id="langEnBtn" class="btn" type="button" title="English">EN</button>
-            </div>
-            <div class="row gap center" id="runningStatus">
-              <div class="spinner hidden" id="globalSpinner"></div>
-              <span class="small" id="runningCount"></span>
-            </div>
+          <div class="row gap center" id="runningStatus">
+            <div class="spinner hidden" id="globalSpinner"></div>
+            <span class="small" id="runningCount"></span>
           </div>
           <div id="flashDock">
             <div id="uiFlash" class="flash info" aria-live="polite"></div>
           </div>
+          <button id="langToggleBtn" class="btn langToggle" type="button" aria-label="Sprache" title="DE/EN">DE</button>
         </div>
       </header>
 

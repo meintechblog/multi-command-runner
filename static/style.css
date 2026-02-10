@@ -21,8 +21,7 @@ h1 { font-size: 20px; margin: 0; }
 }
 #topHeader { gap: 12px; }
 .headerRight { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.langSwitch { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; }
-.langSwitch .btn { padding: 8px 10px; min-width: 46px; }
+.langToggle { padding: 8px 10px; min-width: 50px; font-weight: 650; }
 #flashDock {
   position: relative;
   width: clamp(240px, 40vw, 520px);

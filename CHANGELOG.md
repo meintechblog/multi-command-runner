@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 - Pending
 
+## [2.1.10] - 2026-02-10
+
+### Changed
+
+- Language switch is now a single DE/EN toggle button in the top-right corner.
+
 ## [2.1.9] - 2026-02-10
 
 ### Added

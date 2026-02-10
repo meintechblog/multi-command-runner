@@ -82,8 +82,8 @@ const I18N = {
     no_changes: "Keine Änderungen",
     open_info_title: "Öffnet die Programm-Info",
     lang_switch_aria: "Sprache",
-    lang_de_title: "Deutsch",
-    lang_en_title: "English",
+    lang_toggle_title_to_en: "Zu Englisch wechseln",
+    lang_toggle_title_to_de: "Zu Deutsch wechseln",
     notify_services_title: "Notification services",
     runners_title: "Runners",
     add_service: "+ Dienst",
@@ -243,8 +243,8 @@ const I18N = {
     no_changes: "No changes",
     open_info_title: "Open program info",
     lang_switch_aria: "Language",
-    lang_de_title: "German",
-    lang_en_title: "English",
+    lang_toggle_title_to_en: "Switch to English",
+    lang_toggle_title_to_de: "Switch to German",
     notify_services_title: "Notification services",
     runners_title: "Runners",
     add_service: "+ Service",
@@ -454,18 +454,11 @@ function applyLanguageToStaticDom() {
     infoEn.classList.toggle("hidden", !showEn);
   }
 
-  const langSwitch = el("langSwitch");
-  if (langSwitch) langSwitch.setAttribute("aria-label", t("lang_switch_aria"));
-
-  const deBtn = el("langDeBtn");
-  const enBtn = el("langEnBtn");
-  if (deBtn) {
-    deBtn.title = t("lang_de_title");
-    deBtn.classList.toggle("primary", ui.lang !== "en");
-  }
-  if (enBtn) {
-    enBtn.title = t("lang_en_title");
-    enBtn.classList.toggle("primary", ui.lang === "en");
+  const toggleBtn = el("langToggleBtn");
+  if (toggleBtn) {
+    toggleBtn.setAttribute("aria-label", t("lang_switch_aria"));
+    toggleBtn.textContent = ui.lang === "en" ? "EN" : "DE";
+    toggleBtn.title = ui.lang === "en" ? t("lang_toggle_title_to_de") : t("lang_toggle_title_to_en");
   }
 
   // Keep buttons consistent even before the first state render completes.
@@ -2412,8 +2405,9 @@ async function wireUI() {
   const closeInfoBtn = el("closeInfoBtn");
   const infoModal = el("infoModal");
 
-  el("langDeBtn")?.addEventListener("click", () => setLanguage("de"));
-  el("langEnBtn")?.addEventListener("click", () => setLanguage("en"));
+  el("langToggleBtn")?.addEventListener("click", () => {
+    setLanguage(ui.lang === "en" ? "de" : "en");
+  });
 
   openInfoTitle?.addEventListener("click", () => setInfoModalOpen(true));
   openInfoTitle?.addEventListener("keydown", (e) => {
