@@ -23,7 +23,9 @@ import os
 import queue
 import re
 import base64
+import binascii
 import hashlib
+import hmac
 import signal
 import sqlite3
 import subprocess
@@ -42,7 +44,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -50,6 +52,57 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", str(BASE_DIR / "data"))).resolve()
 DB_PATH = DATA_DIR / "app.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 MASKED_SECRET = "__SECRET_SET__"
+SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,120}$")
+MAX_IMPORT_BYTES = max(16_384, int(os.environ.get("MAX_IMPORT_BYTES", "1048576")))
+MAX_IMPORTED_RUNNERS = max(1, int(os.environ.get("MAX_IMPORTED_RUNNERS", "100")))
+MAX_TOTAL_RUNNERS = max(MAX_IMPORTED_RUNNERS, int(os.environ.get("MAX_TOTAL_RUNNERS", "500")))
+MAX_CASES_PER_RUNNER = max(1, int(os.environ.get("MAX_CASES_PER_RUNNER", "200")))
+MAX_SSE_SUBSCRIBERS = max(1, int(os.environ.get("MAX_SSE_SUBSCRIBERS", "100")))
+MAX_OUTPUT_LINES_PER_RUN = max(200, int(os.environ.get("MAX_OUTPUT_LINES_PER_RUN", "5000")))
+
+AUTH_USER = os.environ.get("COMMAND_RUNNER_AUTH_USER", "").strip()
+AUTH_PASSWORD = os.environ.get("COMMAND_RUNNER_AUTH_PASSWORD", "").strip()
+AUTH_ENABLED = bool(AUTH_USER and AUTH_PASSWORD)
+if (AUTH_USER and not AUTH_PASSWORD) or (AUTH_PASSWORD and not AUTH_USER):
+    print("WARN: Incomplete auth config (COMMAND_RUNNER_AUTH_USER/PASSWORD). Basic auth is disabled.")
+
+
+def _valid_safe_id(value: str) -> bool:
+    return bool(SAFE_ID_RE.fullmatch(str(value or "")))
+
+
+def _sanitize_entity_id(value: Any, prefix: str) -> str:
+    s = str(value or "").strip()
+    if _valid_safe_id(s):
+        return s
+    return _new_id(prefix)
+
+
+def _extract_basic_auth_credentials(request: Request) -> Optional[Tuple[str, str]]:
+    header = request.headers.get("authorization", "")
+    if not header.startswith("Basic "):
+        return None
+    token = header[6:].strip()
+    if not token:
+        return None
+    try:
+        decoded = base64.b64decode(token.encode("ascii"), validate=True).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError):
+        return None
+    if ":" not in decoded:
+        return None
+    username, password = decoded.split(":", 1)
+    return username, password
+
+
+def _is_authorized_request(request: Request) -> bool:
+    if not AUTH_ENABLED:
+        return True
+    creds = _extract_basic_auth_credentials(request)
+    if creds is None:
+        return False
+    username, password = creds
+    return hmac.compare_digest(username, AUTH_USER) and hmac.compare_digest(password, AUTH_PASSWORD)
 
 
 class CredentialCipher:
@@ -260,6 +313,13 @@ class CaseRule(BaseModel):
     message_template: str = ""
     state: str = ""  # Optional semantic state like UP/DOWN/WARN/INFO
 
+    @field_validator("id")
+    @classmethod
+    def validate_id(cls, value: str) -> str:
+        if not _valid_safe_id(value):
+            raise ValueError("Invalid case id format")
+        return value
+
 
 class ScheduleConfig(BaseModel):
     hours: int = 0
@@ -281,6 +341,21 @@ class NotifyProfile(BaseModel):
     sent_count: int = 0
     config: PushoverConfig = Field(default_factory=PushoverConfig)
 
+    @field_validator("id")
+    @classmethod
+    def validate_id(cls, value: str) -> str:
+        if not _valid_safe_id(value):
+            raise ValueError("Invalid notification profile id format")
+        return value
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, value: str) -> str:
+        t = str(value or "").strip().lower()
+        if t != "pushover":
+            raise ValueError("Unsupported notification profile type")
+        return t
+
 
 class RunnerConfig(BaseModel):
     id: str = Field(default_factory=lambda: _new_id("runner_"))
@@ -296,6 +371,24 @@ class RunnerConfig(BaseModel):
     notify_profile_ids: List[str] = Field(default_factory=list)
     notify_profile_updates_only: List[str] = Field(default_factory=list)
 
+    @field_validator("id")
+    @classmethod
+    def validate_id(cls, value: str) -> str:
+        if not _valid_safe_id(value):
+            raise ValueError("Invalid runner id format")
+        return value
+
+    @field_validator("notify_profile_ids", "notify_profile_updates_only")
+    @classmethod
+    def validate_notify_profile_ids(cls, values: List[str]) -> List[str]:
+        cleaned: List[str] = []
+        for value in values:
+            s = str(value or "").strip()
+            if not _valid_safe_id(s):
+                raise ValueError("Invalid notification profile reference id")
+            cleaned.append(s)
+        return cleaned
+
 
 class AppState(BaseModel):
     notify_profiles: List[NotifyProfile] = Field(default_factory=list)
@@ -309,14 +402,38 @@ class PushoverTestRequest(BaseModel):
     profile_id: str = ""
     message: str = ""
 
+    @field_validator("profile_id")
+    @classmethod
+    def validate_profile_id(cls, value: str) -> str:
+        s = str(value or "").strip()
+        if s and not _valid_safe_id(s):
+            raise ValueError("Invalid profile id format")
+        return s
+
 
 class RunRequest(BaseModel):
     state: AppState
     runner_id: str
 
+    @field_validator("runner_id")
+    @classmethod
+    def validate_runner_id(cls, value: str) -> str:
+        s = str(value or "").strip()
+        if not _valid_safe_id(s):
+            raise ValueError("Invalid runner id format")
+        return s
+
 
 class StopRequest(BaseModel):
     runner_id: str
+
+    @field_validator("runner_id")
+    @classmethod
+    def validate_runner_id(cls, value: str) -> str:
+        s = str(value or "").strip()
+        if not _valid_safe_id(s):
+            raise ValueError("Invalid runner id format")
+        return s
 
 
 class StateStore:
@@ -697,9 +814,9 @@ class StateStore:
         if not isinstance(notify_profiles, list):
             notify_profiles = []
         for np in notify_profiles:
-            np.setdefault("id", _new_id("notify_"))
+            np["id"] = _sanitize_entity_id(np.get("id", ""), "notify_")
             np.setdefault("name", "Pushover")
-            np.setdefault("type", "pushover")
+            np["type"] = "pushover"
             np.setdefault("active", True)
             np.setdefault("failure_count", 0)
             np.setdefault("sent_count", 0)
@@ -714,13 +831,17 @@ class StateStore:
                 np["sent_count"] = 0
             np.pop("snoozed_until", None)
             np.setdefault("config", {"user_key": "", "api_token": ""})
+            if not isinstance(np["config"], dict):
+                np["config"] = {"user_key": "", "api_token": ""}
+            np["config"]["user_key"] = str(np["config"].get("user_key", "") or "")
+            np["config"]["api_token"] = str(np["config"].get("api_token", "") or "")
         merged["notify_profiles"] = notify_profiles
 
         runners = merged.get("runners") or []
         if not isinstance(runners, list):
             runners = []
         for r in runners:
-            r.setdefault("id", _new_id("runner_"))
+            r["id"] = _sanitize_entity_id(r.get("id", ""), "runner_")
             r.setdefault("name", "Runner")
             r.setdefault("command", "")
             r.setdefault("logging_enabled", True)
@@ -745,10 +866,40 @@ class StateStore:
             except Exception:
                 r["failure_pause_threshold"] = 5
             r.pop("snoozed_until", None)
-            # Case migrations
-            for c in r.get("cases", []):
+            r["notify_profile_ids"] = [
+                str(v).strip()
+                for v in (r.get("notify_profile_ids") or [])
+                if _valid_safe_id(str(v).strip())
+            ]
+            r["notify_profile_updates_only"] = [
+                str(v).strip()
+                for v in (r.get("notify_profile_updates_only") or [])
+                if _valid_safe_id(str(v).strip())
+            ]
+
+            raw_cases = r.get("cases", []) or []
+            if not isinstance(raw_cases, list):
+                raw_cases = []
+            sane_cases: List[Dict[str, Any]] = []
+            for c in raw_cases:
+                if not isinstance(c, dict):
+                    continue
+                c["id"] = _sanitize_entity_id(c.get("id", ""), "case_")
+                c["pattern"] = str(c.get("pattern", "") or "")
+                c["message_template"] = str(c.get("message_template", "") or "")
                 c.setdefault("state", "")
                 c["state"] = normalize_case_state(c.get("state", ""))
+                sane_cases.append(c)
+            r["cases"] = sane_cases
+
+        valid_notify_ids = {np.get("id") for np in notify_profiles if _valid_safe_id(str(np.get("id", "")))}
+        for r in runners:
+            r["notify_profile_ids"] = [
+                pid for pid in dict.fromkeys(r.get("notify_profile_ids", [])) if pid in valid_notify_ids
+            ]
+            r["notify_profile_updates_only"] = [
+                pid for pid in dict.fromkeys(r.get("notify_profile_updates_only", [])) if pid in r["notify_profile_ids"]
+            ]
         merged["runners"] = runners
         return merged
 
@@ -757,11 +908,14 @@ class EventBroker:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._subs: Dict[str, queue.Queue] = {}
+        self._max_subscribers = MAX_SSE_SUBSCRIBERS
 
     def subscribe(self) -> Tuple[str, queue.Queue]:
         sub_id = uuid.uuid4().hex
         q: queue.Queue = queue.Queue(maxsize=7000)
         with self._lock:
+            if len(self._subs) >= self._max_subscribers:
+                raise RuntimeError("Too many connected event-stream clients")
             self._subs[sub_id] = q
         return sub_id, q
 
@@ -1032,12 +1186,20 @@ class RunnerManager:
         self._last_alert_notify_ts: Dict[str, float] = {}
         self._consecutive_failures: Dict[str, int] = {}
         self._paused_due_failures: Dict[str, bool] = {}
+        self._max_output_lines = MAX_OUTPUT_LINES_PER_RUN
 
         # Load persisted runtime status
         runtime_status = load_runtime_status()
         for runner_id, data in runtime_status.items():
             self._last_case[runner_id] = data.get("last_case", "")
             self._last_case_ts[runner_id] = data.get("last_case_ts", "")
+
+    def _append_output_line_locked(self, runner_id: str, line: str) -> None:
+        lines = self._outputs.setdefault(runner_id, [])
+        lines.append(line)
+        overflow = len(lines) - self._max_output_lines
+        if overflow > 0:
+            del lines[:overflow]
 
     def snapshot(self) -> Dict[str, Any]:
         with self._lock:
@@ -1292,7 +1454,7 @@ class RunnerManager:
             for line in proc.stdout:
                 s = line.strip()
                 with self._lock:
-                    self._outputs[runner_id].append(line)
+                    self._append_output_line_locked(runner_id, line)
                     if s:
                         self._last_line[runner_id] = s
                 self._broker.publish({"type": "output", "runner_id": runner_id, "line": line})
@@ -1498,9 +1660,30 @@ broker = EventBroker()
 notifier = NotificationWorker(broker, store)
 rm = RunnerManager(broker, notifier)
 
-app = FastAPI(title="command-runner", version="2.0.2")
+app = FastAPI(title="command-runner", version="2.1.0")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+if AUTH_ENABLED:
+    print("INFO: HTTP Basic auth is enabled.")
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    if not AUTH_ENABLED:
+        return await call_next(request)
+
+    if request.url.path.startswith("/static/"):
+        return await call_next(request)
+
+    if _is_authorized_request(request):
+        return await call_next(request)
+
+    return JSONResponse(
+        {"detail": "Unauthorized"},
+        status_code=401,
+        headers={"WWW-Authenticate": 'Basic realm="command-runner"'},
+    )
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -1704,6 +1887,8 @@ def export_runners() -> StreamingResponse:
 async def import_runners(request: Request) -> JSONResponse:
     try:
         body = await request.body()
+        if len(body) > MAX_IMPORT_BYTES:
+            raise HTTPException(status_code=413, detail=f"Import too large (max {MAX_IMPORT_BYTES} bytes)")
         import_data = json.loads(body.decode("utf-8"))
 
         if not isinstance(import_data, dict) or "runners" not in import_data:
@@ -1712,13 +1897,39 @@ async def import_runners(request: Request) -> JSONResponse:
         imported_runners = import_data.get("runners", [])
         if not isinstance(imported_runners, list):
             raise HTTPException(status_code=400, detail="Invalid import format: 'runners' must be a list")
+        if len(imported_runners) > MAX_IMPORTED_RUNNERS:
+            raise HTTPException(status_code=400, detail=f"Too many runners in import (max {MAX_IMPORTED_RUNNERS})")
 
         # Load current state
         current_state = store.load()
         existing_runners = current_state.get("runners", [])
+        if not isinstance(existing_runners, list):
+            existing_runners = []
+
+        validated_runners: List[Dict[str, Any]] = []
+        for idx, raw_runner in enumerate(imported_runners, start=1):
+            if not isinstance(raw_runner, dict):
+                raise HTTPException(status_code=400, detail=f"Invalid runner entry at index {idx}: expected object")
+            try:
+                parsed = RunnerConfig.model_validate(raw_runner).model_dump()
+            except ValidationError as e:
+                raise HTTPException(status_code=400, detail=f"Invalid runner entry at index {idx}: {e}") from e
+
+            if len(parsed.get("cases", []) or []) > MAX_CASES_PER_RUNNER:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Runner entry at index {idx} exceeds case limit ({MAX_CASES_PER_RUNNER})",
+                )
+            validated_runners.append(parsed)
+
+        if len(existing_runners) + len(validated_runners) > MAX_TOTAL_RUNNERS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Import would exceed total runner limit ({MAX_TOTAL_RUNNERS})",
+            )
 
         # Merge: add imported runners with new IDs to avoid conflicts
-        for runner in imported_runners:
+        for runner in validated_runners:
             # Generate new ID for imported runner
             runner["id"] = _new_id("runner_")
             # Regenerate case IDs too
@@ -1730,16 +1941,21 @@ async def import_runners(request: Request) -> JSONResponse:
         store.save(current_state)
         ensure_logs_for_runners(existing_runners)
 
-        return JSONResponse({"ok": True, "imported_count": len(imported_runners)})
+        return JSONResponse({"ok": True, "imported_count": len(validated_runners)})
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="Import failed")
 
 
 @app.get("/api/events")
 def events() -> StreamingResponse:
-    sub_id, q = broker.subscribe()
+    try:
+        sub_id, q = broker.subscribe()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
     snap = rm.snapshot()
 
     def gen() -> Iterable[str]:

@@ -44,15 +44,23 @@ What this installer does automatically:
 - clones/updates repo to `/opt/command-runner`
 - creates `.venv` and installs Python dependencies
 - creates/updates `.env` including generated `COMMAND_RUNNER_SECRET_KEY`
+- bootstraps HTTP Basic auth (`COMMAND_RUNNER_AUTH_USER` / `COMMAND_RUNNER_AUTH_PASSWORD`) if missing
 - installs/enables service and restarts `command-runner.service` (systemd)
 - runs API health check and prints access URL/log commands
 
 You can re-run the same one-liner later to apply updates from GitHub.
+If the installer creates a new Basic-auth password, it is printed once at the end.
 
 Optional overrides (example):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/install.sh | REPO_BRANCH=main PORT_BIND=8090 INSTALL_DIR=/opt/command-runner bash
+```
+
+Disable automatic Basic-auth bootstrap (not recommended):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/install.sh | ENABLE_BASIC_AUTH=0 bash
 ```
 
 ## 0) Proxmox LXC (Recommended Homelab Setup)
@@ -164,6 +172,15 @@ COMMAND_RUNNER_SECRET_KEY=replace-with-strong-random-secret
 ```
 
 If `COMMAND_RUNNER_SECRET_KEY` is not set, the app auto-creates `data/.credentials.key`.
+
+Optional (recommended) HTTP Basic auth:
+
+```env
+COMMAND_RUNNER_AUTH_USER=admin
+COMMAND_RUNNER_AUTH_PASSWORD=replace-with-strong-password
+```
+
+If both values are set, all UI/API routes require authentication.
 
 ## 5) Start Manually
 

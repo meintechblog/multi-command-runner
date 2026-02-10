@@ -11,6 +11,9 @@ apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubuserco
 ```
 
 Re-running the same command also works as an update path (pull latest code + restart service).
+The installer also bootstraps HTTP Basic auth by default (or keeps existing auth values).
+If a new password is generated, it is shown once at the end of installer output.
+You can disable auth bootstrap explicitly with `ENABLE_BASIC_AUTH=0` (not recommended).
 
 ## System Requirements (Short)
 
@@ -50,6 +53,7 @@ More installation details (including Proxmox LXC setup and sudo-safe install flo
 
 This app executes arbitrary shell commands (`bash -lc ...`) from the web UI.
 Run it only in trusted/private environments and never expose it publicly without strong access controls.
+Use Basic auth (`COMMAND_RUNNER_AUTH_USER` / `COMMAND_RUNNER_AUTH_PASSWORD`) and network restrictions.
 
 ## Requirements (Manual Run / Dev)
 
@@ -76,6 +80,8 @@ Environment variables:
 - `HOST` (default: `127.0.0.1`)
 - `PORT` (default: `8080`)
 - `DATA_DIR` (default: `./data`)
+- `COMMAND_RUNNER_SECRET_KEY` (optional encryption key override)
+- `COMMAND_RUNNER_AUTH_USER` + `COMMAND_RUNNER_AUTH_PASSWORD` (enable HTTP Basic auth when both are set)
 
 Example:
 

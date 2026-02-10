@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SCRIPT_VERSION="1.0.1"
+SCRIPT_VERSION="1.1.0"
 
 REPO_URL="${REPO_URL:-https://github.com/meintechblog/command-runner.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
@@ -13,9 +13,13 @@ HOST_BIND="${HOST_BIND:-0.0.0.0}"
 PORT_BIND="${PORT_BIND:-8080}"
 DATA_DIR="${DATA_DIR:-${INSTALL_DIR}/data}"
 RUN_AS_ROOT="${RUN_AS_ROOT:-0}"
+ENABLE_BASIC_AUTH="${ENABLE_BASIC_AUTH:-1}"
 
 SERVICE_UNIT_PATH="/etc/systemd/system/${SERVICE_NAME}.service"
 ENV_FILE="${INSTALL_DIR}/.env"
+generated_auth_password=""
+effective_auth_user=""
+effective_auth_password=""
 
 log() {
   printf "%s [INFO] %s\n" "$(date '+%F %T')" "$*"
@@ -147,6 +151,25 @@ if ! grep -qE "^[[:space:]]*COMMAND_RUNNER_SECRET_KEY=" "${ENV_FILE}"; then
   printf "COMMAND_RUNNER_SECRET_KEY=%s\n" "${secret_key}" >> "${ENV_FILE}"
 fi
 
+if [[ "${ENABLE_BASIC_AUTH}" == "1" ]]; then
+  current_auth_user="$(grep -E "^[[:space:]]*COMMAND_RUNNER_AUTH_USER=" "${ENV_FILE}" | tail -n 1 | cut -d'=' -f2- || true)"
+  current_auth_pass="$(grep -E "^[[:space:]]*COMMAND_RUNNER_AUTH_PASSWORD=" "${ENV_FILE}" | tail -n 1 | cut -d'=' -f2- || true)"
+
+  if [[ -z "${current_auth_user}" ]]; then
+    current_auth_user="admin"
+    upsert_env "COMMAND_RUNNER_AUTH_USER" "${current_auth_user}" "${ENV_FILE}"
+  fi
+  if [[ -z "${current_auth_pass}" ]]; then
+    generated_auth_password="$(python3 -c 'import secrets,string; alphabet=string.ascii_letters + string.digits; print(\"\".join(secrets.choice(alphabet) for _ in range(20)))')"
+    upsert_env "COMMAND_RUNNER_AUTH_PASSWORD" "${generated_auth_password}" "${ENV_FILE}"
+    current_auth_pass="${generated_auth_password}"
+  fi
+  effective_auth_user="${current_auth_user}"
+  effective_auth_password="${current_auth_pass}"
+else
+  warn "Basic auth bootstrap disabled (ENABLE_BASIC_AUTH=0)."
+fi
+
 if [[ "${APP_USER}" != "root" ]]; then
   chown -R "${APP_USER}:${APP_GROUP}" "${DATA_DIR}"
   chown "${APP_USER}:${APP_GROUP}" "${ENV_FILE}"
@@ -198,8 +221,13 @@ ok "${SERVICE_NAME}.service is active."
 
 log "Waiting for API health check..."
 health_ok="0"
+health_curl_args=()
+if [[ "${ENABLE_BASIC_AUTH}" == "1" && -n "${effective_auth_user}" && -n "${effective_auth_password}" ]]; then
+  auth_token="$(printf "%s:%s" "${effective_auth_user}" "${effective_auth_password}" | base64 -w 0)"
+  health_curl_args=(-H "Authorization: Basic ${auth_token}")
+fi
 for _ in $(seq 1 45); do
-  if curl -fsS "http://127.0.0.1:${PORT_BIND}/api/status" >/dev/null 2>&1; then
+  if curl -fsS "${health_curl_args[@]}" "http://127.0.0.1:${PORT_BIND}/api/status" >/dev/null 2>&1; then
     health_ok="1"
     break
   fi
@@ -242,5 +270,16 @@ else
   echo "LAN IP not detected automatically. Check with: hostname -I"
 fi
 echo "------------------------------------------------------------"
+if [[ "${ENABLE_BASIC_AUTH}" == "1" && -n "${effective_auth_user}" ]]; then
+  echo "WEB UI AUTH (BASIC)"
+  echo "Username: ${effective_auth_user}"
+  if [[ -n "${generated_auth_password}" ]]; then
+    echo "Password (generated now): ${generated_auth_password}"
+    echo "IMPORTANT: Save this password now. It is only shown once."
+  else
+    echo "Password: existing value from ${ENV_FILE} is used."
+  fi
+  echo "------------------------------------------------------------"
+fi
 echo "Logs: journalctl -u ${SERVICE_NAME}.service -f"
 echo "============================================================"

@@ -13,6 +13,16 @@ Treat this as a privileged administrative tool.
 - Restrict host/container permissions
 - Keep backups of `data/` and secret material
 
+## Built-in HTTP Basic Auth
+
+The application supports built-in HTTP Basic auth for UI and API endpoints.
+
+- Enable by setting both:
+  - `COMMAND_RUNNER_AUTH_USER`
+  - `COMMAND_RUNNER_AUTH_PASSWORD`
+- If only one of the two values is set, auth remains disabled (warning logged).
+- The install script bootstraps these values by default unless `ENABLE_BASIC_AUTH=0` is used.
+
 ## Notification Credential Storage
 
 Notification service credentials are encrypted at rest in the SQLite state.
@@ -28,6 +38,7 @@ Without access to the encryption key, encrypted credentials cannot be decrypted.
 
 - `GET /api/state` returns masked credential placeholders (`__SECRET_SET__`)
 - Actual secrets are decrypted server-side only when needed for send/test operations
+- Optional HTTP Basic auth protects all non-static routes when configured
 
 ## Operational Caveats
 
@@ -37,7 +48,7 @@ Without access to the encryption key, encrypted credentials cannot be decrypted.
 
 ## Suggested Hardening Roadmap
 
-- Add authentication and per-user access control
+- Add per-user access control and role separation (current auth is single shared credential)
 - Add CSRF/session protection if browser-exposed outside localhost
 - Add audit logging with actor/source metadata
 - Add network policy/firewall restrictions
