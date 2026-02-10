@@ -110,6 +110,22 @@ function formatTime(isoString) {
   }
 }
 
+function formatDurationHhMmSs(totalSeconds) {
+  totalSeconds = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function formatElapsedSince(isoString, nowMs = Date.now()) {
+  if (!isoString) return "";
+  const startMs = Date.parse(isoString);
+  if (!Number.isFinite(startMs)) return "";
+  const elapsedSeconds = Math.max(0, Math.floor((nowMs - startMs) / 1000));
+  return formatDurationHhMmSs(elapsedSeconds);
+}
+
 function formatDateTime(isoString) {
   if (!isoString) return "";
   try {
@@ -131,6 +147,35 @@ function appendEvents(text) {
   const out = el("events");
   out.textContent += text;
   out.scrollTop = out.scrollHeight;
+}
+
+let runnerElapsedInterval = null;
+function tickRunnerElapsed() {
+  const nodes = document.querySelectorAll("[data-runner-elapsed]");
+  if (!nodes.length) return;
+  const nowMs = Date.now();
+  nodes.forEach((node) => {
+    const rid = String(node.dataset.runnerElapsed || "");
+    const rt = runtime.status[rid] || {};
+    if (rt.running && rt.started_ts) {
+      const s = formatElapsedSince(rt.started_ts, nowMs);
+      if (s) {
+        node.classList.remove("hidden");
+        node.textContent = `⏱ ${s}`;
+        node.title = `Laufzeit: ${s}`;
+        return;
+      }
+    }
+    node.classList.add("hidden");
+    node.textContent = "";
+    node.title = "";
+  });
+}
+
+function startRunnerElapsedTicker() {
+  if (runnerElapsedInterval) return;
+  runnerElapsedInterval = setInterval(tickRunnerElapsed, 1000);
+  tickRunnerElapsed();
 }
 
 function formatNotifyJournalLine(item) {
@@ -1050,6 +1095,8 @@ function renderRunners() {
     const paused = !!rt.paused;
     const consecutiveFailures = Math.max(0, Number(rt.consecutive_failures || 0));
     const isActive = running || scheduled;
+    const elapsedText = running ? formatElapsedSince(rt.started_ts) : "";
+    const showElapsed = running && !!elapsedText;
     const maxRuns = Number(r.max_runs);
     const intervalSeconds =
       ((Number(r.schedule?.hours) || 0) * 3600) +
@@ -1094,6 +1141,7 @@ function renderRunners() {
           </div>
           <div class="runnerState">
             <div class="spinner ${isActive ? "" : "hidden"}" data-spinner="${r.id}"></div>
+            <span class="pill runnerElapsed ${showElapsed ? "" : "hidden"}" data-runner-elapsed="${r.id}">${showElapsed ? `⏱ ${escapeHtml(elapsedText)}` : ""}</span>
             <span class="small runnerStateText">${escapeHtml(runnerStateText)}</span>
           </div>
         </div>
@@ -1675,6 +1723,7 @@ function startEvents() {
       if (ev.type === "snapshot") {
         runtime.status = ev.snapshot || {};
         renderRunners();
+        tickRunnerElapsed();
         updateGlobalRunningStatus();
         return;
       }
@@ -1690,6 +1739,7 @@ function startEvents() {
           runtime.status[rid].running = true;
           runtime.status[rid].scheduled = false;
           runtime.status[rid].paused = false;
+          runtime.status[rid].started_ts = ev.ts || new Date().toISOString();
           if (ev.run_count !== undefined) {
             runtime.status[rid].run_count = ev.run_count;
           }
@@ -1706,23 +1756,28 @@ function startEvents() {
           delayedStatusUpdate(rid, () => {
             runtime.status[rid].running = false;
             runtime.status[rid].scheduled = false;
+            delete runtime.status[rid].started_ts;
             renderRunners();
+            tickRunnerElapsed();
             updateGlobalRunningStatus();
           });
         } else if (ev.status === "scheduled") {
           runtime.status[rid].scheduled = true;
           logHulk("info", `${rid}: NAECHSTER RUN IN ${ev.in_s} SEKUNDEN GEPLANT.`, ev.ts);
           renderRunners();
+          tickRunnerElapsed();
           updateGlobalRunningStatus();
         } else if (ev.status === "paused") {
           runtime.status[rid].running = false;
           runtime.status[rid].scheduled = false;
           runtime.status[rid].paused = true;
+          delete runtime.status[rid].started_ts;
           runtime.status[rid].consecutive_failures = Number(ev.consecutive_failures || runtime.status[rid].consecutive_failures || 0);
           const msg = `${rid}: AUTO-PAUSE NACH ${runtime.status[rid].consecutive_failures} FEHLERN. MANUELLER RUN NEEDED.`;
           logHulk("error", msg, ev.ts);
           hulkFlash("error", msg, 5200);
           renderRunners();
+          tickRunnerElapsed();
           updateGlobalRunningStatus();
         } else if (ev.status === "finished") {
           const kind = ev.stopped ? "info" : (Number(ev.exit_code) === 0 ? "success" : "error");
@@ -1732,7 +1787,9 @@ function startEvents() {
           }
           delayedStatusUpdate(rid, () => {
             runtime.status[rid].running = false;
+            delete runtime.status[rid].started_ts;
             renderRunners();
+            tickRunnerElapsed();
             updateGlobalRunningStatus();
           });
         }
@@ -2009,6 +2066,7 @@ async function wireUI() {
     setFromState(st);
     await loadNotifyJournal();
     startEvents();
+    startRunnerElapsedTicker();
     await wireUI();
     hulkFlash("success", "System bereit.", 2800);
     logHulk("success", "SYSTEM BEREIT.");

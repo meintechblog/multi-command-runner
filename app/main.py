@@ -1201,6 +1201,7 @@ class RunnerManager:
         self._notifier = notifier
         self._lock = threading.Lock()
         self._procs: Dict[str, subprocess.Popen] = {}
+        self._started_ts: Dict[str, str] = {}
         self._outputs: Dict[str, List[str]] = {}
         self._last_line: Dict[str, str] = {}
         self._stopped: Dict[str, bool] = {}
@@ -1236,6 +1237,7 @@ class RunnerManager:
                 set(self._cfg.keys())
                 | set(self._outputs.keys())
                 | set(self._procs.keys())
+                | set(self._started_ts.keys())
                 | set(self._timers.keys())
                 | set(self._consecutive_failures.keys())
                 | set(self._paused_due_failures.keys())
@@ -1246,6 +1248,7 @@ class RunnerManager:
                 snap[rid] = {
                     "running": running,
                     "stopped": bool(self._stopped.get(rid, False)),
+                    "started_ts": self._started_ts.get(rid, ""),
                     "tail": "".join((self._outputs.get(rid) or [])[-200:]),
                     "remaining": self._remaining.get(rid),
                     "run_count": self._run_count.get(rid, 0),  # Current run count for infinite runners
@@ -1315,12 +1318,17 @@ class RunnerManager:
         self._broker.publish({"type": "status", "runner_id": runner_id, "status": "stopping", "ts": now_iso()})
 
         if proc is None or proc.poll() is not None:
+            with self._lock:
+                self._started_ts.pop(runner_id, None)
             self._broker.publish({"type": "status", "runner_id": runner_id, "status": "stopped", "ts": now_iso()})
             return
 
         self._terminate_clean(proc)
 
     def start(self, cfg: RunnerRuntimeConfig, reset_schedule: bool = True) -> None:
+        started_ts = ""
+        current_run_count = 0
+        current_remaining: Optional[int] = None
         with self._lock:
             if reset_schedule:
                 t = self._timers.pop(cfg.runner_id, None)
@@ -1362,10 +1370,12 @@ class RunnerManager:
                 start_new_session=True,
             )
 
-        with self._lock:
+            started_ts = now_iso()
+            self._started_ts[cfg.runner_id] = started_ts
             current_run_count = self._run_count.get(cfg.runner_id, 0)
             current_remaining = self._remaining.get(cfg.runner_id)
-        self._broker.publish({"type": "status", "runner_id": cfg.runner_id, "status": "started", "ts": now_iso(), "run_count": current_run_count, "remaining": current_remaining})
+
+        self._broker.publish({"type": "status", "runner_id": cfg.runner_id, "status": "started", "ts": started_ts, "run_count": current_run_count, "remaining": current_remaining})
         threading.Thread(target=self._reader_thread, args=(cfg.runner_id,), daemon=True).start()
 
     def _schedule_next(self, runner_id: str) -> None:
@@ -1389,6 +1399,9 @@ class RunnerManager:
         self._broker.publish({"type": "status", "runner_id": runner_id, "status": "scheduled", "in_s": cfg.interval_s, "ts": now_iso()})
 
     def _scheduled_start(self, runner_id: str) -> None:
+        started_ts = ""
+        current_run_count = 0
+        current_remaining: Optional[int] = None
         with self._lock:
             self._timers.pop(runner_id, None)
             if self._stopped.get(runner_id, False):
@@ -1422,7 +1435,10 @@ class RunnerManager:
             )
             current_run_count = self._run_count.get(runner_id, 0)
             current_remaining = self._remaining.get(runner_id)
-        self._broker.publish({"type": "status", "runner_id": runner_id, "status": "started", "ts": now_iso(), "run_count": current_run_count, "remaining": current_remaining})
+            started_ts = now_iso()
+            self._started_ts[runner_id] = started_ts
+
+        self._broker.publish({"type": "status", "runner_id": runner_id, "status": "started", "ts": started_ts, "run_count": current_run_count, "remaining": current_remaining})
         threading.Thread(target=self._reader_thread, args=(runner_id,), daemon=True).start()
 
     @staticmethod
@@ -1495,6 +1511,7 @@ class RunnerManager:
                 last_line = self._last_line.get(runner_id, "")
                 current_cfg = self._cfg.get(runner_id) or start_cfg
                 self._procs.pop(runner_id, None)
+                self._started_ts.pop(runner_id, None)
 
             if current_cfg.logging_enabled:
                 # Command in log header should reflect the command that was actually started.
@@ -1688,7 +1705,7 @@ broker = EventBroker()
 notifier = NotificationWorker(broker, store)
 rm = RunnerManager(broker, notifier)
 
-app = FastAPI(title="command-runner", version="2.1.3")
+app = FastAPI(title="command-runner", version="2.1.4")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 

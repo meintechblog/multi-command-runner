@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 - Pending
 
+## [2.1.4] - 2026-02-10
+
+### Added
+
+- Runner runtime duration display while running (`hh:mm:ss`, unlimited hours).
+
 ## [2.1.3] - 2026-02-10
 
 ### Added

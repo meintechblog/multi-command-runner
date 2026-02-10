@@ -172,6 +172,14 @@ label span { display: block; font-size: 12px; opacity: 0.85; margin-bottom: 6px;
   white-space: normal;
   overflow-wrap: anywhere;
 }
+.runnerElapsed {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background: rgba(18, 28, 48, 0.55);
+  border-color: #2f4f8f;
+  padding: 4px 8px;
+}
 .runnerActions { justify-content: flex-end; }
 .notifyActions { justify-content: flex-end; }
 .runnerActions .btn { padding: 8px 10px; }
