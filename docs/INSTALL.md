@@ -110,34 +110,73 @@ python -m app.main
 
 Open `http://HOST:PORT`.
 
-## 6) Optional: Run as systemd Service
+## 6) Optional: Run as systemd Service (Recommended for Proxmox/LXC)
+
+Create a dedicated service user (recommended):
+
+```bash
+if ! id -u command-runner >/dev/null 2>&1; then
+  sudo useradd --system --home /opt/command-runner --shell /usr/sbin/nologin command-runner
+fi
+sudo chown -R command-runner:command-runner /opt/command-runner
+```
 
 Create `/etc/systemd/system/command-runner.service`:
 
 ```ini
 [Unit]
-Description=command-runner
-After=network.target
+Description=Command Runner Web App
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=command-runner
 WorkingDirectory=/opt/command-runner
+
 EnvironmentFile=/opt/command-runner/.env
+Environment=HOST=0.0.0.0
+Environment=PORT=8080
+
 ExecStart=/opt/command-runner/.venv/bin/python -m app.main
-Restart=always
-RestartSec=2
+
+Restart=on-failure
+RestartSec=3
+
+# Important for clean SSE shutdown behavior:
+KillSignal=SIGINT
+TimeoutStopSec=5
+KillMode=control-group
+SendSIGKILL=yes
+
+# Optional hardening:
+# NoNewPrivileges=true
+# PrivateTmp=true
+
+User=command-runner
+Group=command-runner
 
 [Install]
 WantedBy=multi-user.target
 ```
 
+If you intentionally run as `root`, replace:
+
+- `User=command-runner` with `User=root`
+- `Group=command-runner` with `Group=root`
+
 Enable/start:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now command-runner
-sudo systemctl status command-runner
+sudo systemctl enable --now command-runner.service
+sudo systemctl status command-runner.service
+```
+
+Useful checks:
+
+```bash
+sudo systemctl restart command-runner.service
+sudo journalctl -u command-runner.service -f
 ```
 
 ## 7) Upgrade Procedure
