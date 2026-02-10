@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SCRIPT_VERSION="1.1.0"
+SCRIPT_VERSION="1.1.1"
 
 REPO_URL="${REPO_URL:-https://github.com/meintechblog/command-runner.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
