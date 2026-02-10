@@ -142,7 +142,6 @@ label span { display: block; font-size: 12px; opacity: 0.85; margin-bottom: 6px;
   cursor: default;
   overflow: hidden;
 }
-.runner.reorder-mode { cursor: move; }
 .runnerHead {
   padding: 12px 14px;
   display: flex;
@@ -257,9 +256,6 @@ label span { display: block; font-size: 12px; opacity: 0.85; margin-bottom: 6px;
 .case { border:1px solid #1e253a; border-radius: 12px; padding:10px; margin:10px 0; background:#0b0d12; }
 a.loglink { display:inline-block; margin-top:8px; font-size:12px; opacity:0.9; }
 .notifyProfile { border: 1px solid #1e253a; border-radius: 14px; background: #0f1320; margin: 12px 0; cursor: default; }
-.notifyProfile.reorder-mode { cursor: move; }
-.notifyProfile.dragging { opacity: 0.4; }
-.notifyProfile.drag-over { border-top: 3px solid #2d5bff; }
 .notifyHead { padding: 10px; display:flex; align-items:flex-start; justify-content: space-between; gap: 10px; }
 .notifyTitle { display:flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
 .notifyTitleRow { display:flex; align-items:center; gap: 10px; min-width: 0; }
@@ -276,8 +272,6 @@ a.loglink { display:inline-block; margin-top:8px; font-size:12px; opacity:0.9; }
 .notifyStateText.warn { color: #ffdca1; opacity: 0.95; }
 .notifyStateText.error { color: #ffd9dc; opacity: 0.95; }
 .notifyBody { padding: 10px; border-top:1px solid #1e253a; }
-.runner.dragging { opacity: 0.4; }
-.runner.drag-over { border-top: 3px solid #2d5bff; }
 .reorderControls .btn {
   min-width: 38px;
   padding: 8px 10px;

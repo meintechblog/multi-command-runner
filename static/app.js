@@ -709,10 +709,6 @@ function renderNotifyProfiles() {
     const notifyStatusKind = !isActive ? "error" : (failCount >= 2 ? "warn" : (failCount > 0 ? "info" : "ok"));
     const div = document.createElement("div");
     div.className = "notifyProfile";
-    if (ui.notifySortMode) {
-      div.classList.add("reorder-mode");
-    }
-    div.draggable = true;
     div.dataset.notifyId = np.id;
     div.innerHTML = `
       <div class="notifyHead">
@@ -751,61 +747,6 @@ function renderNotifyProfiles() {
         <p class="hint" style="margin-top:8px;">Zugangsdaten werden verschleiert angezeigt. Neueingabe überschreibt bestehende Werte.</p>
       </div>
     `;
-
-    // Drag & Drop handlers
-    div.addEventListener("dragstart", (e) => {
-      // Prevent dragging if started from interactive elements
-      const target = e.target;
-      if (
-        target.closest('input') ||
-        target.closest('textarea') ||
-        target.closest('select') ||
-        target.closest('button') ||
-        target.closest('pre.output')
-      ) {
-        e.preventDefault();
-        return;
-      }
-      div.classList.add("dragging");
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", np.id);
-    });
-
-    div.addEventListener("dragend", () => {
-      div.classList.remove("dragging");
-      wrap.querySelectorAll(".notifyProfile").forEach((el) => el.classList.remove("drag-over"));
-    });
-
-    div.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-      const dragging = wrap.querySelector(".notifyProfile.dragging");
-      if (dragging && dragging !== div) {
-        div.classList.add("drag-over");
-      }
-    });
-
-    div.addEventListener("dragleave", () => {
-      div.classList.remove("drag-over");
-    });
-
-    div.addEventListener("drop", async (e) => {
-      e.preventDefault();
-      div.classList.remove("drag-over");
-      const draggedId = e.dataTransfer.getData("text/plain");
-      const targetId = np.id;
-      if (draggedId === targetId) return;
-
-      // Reorder array
-      const draggedIdx = state.notify_profiles.findIndex((x) => x.id === draggedId);
-      const targetIdx = state.notify_profiles.findIndex((x) => x.id === targetId);
-      if (draggedIdx === -1 || targetIdx === -1) return;
-
-      const [removed] = state.notify_profiles.splice(draggedIdx, 1);
-      state.notify_profiles.splice(targetIdx, 0, removed);
-      renderNotifyProfiles();
-      await autoSave();
-    });
 
     wrap.appendChild(div);
   });
@@ -1070,10 +1011,6 @@ function renderRunners() {
 
     const div = document.createElement("div");
     div.className = "runner";
-    if (ui.runnerSortMode) {
-      div.classList.add("reorder-mode");
-    }
-    div.draggable = true;
     div.dataset.runnerId = r.id;
     div.innerHTML = `
       <div class="runnerHead">
@@ -1230,60 +1167,6 @@ function renderRunners() {
     const out = runnerOutputEl(r.id);
     if (out) out.textContent = runtime.outputs[r.id] || (rt.tail || "");
 
-    // Drag & Drop handlers
-    div.addEventListener("dragstart", (e) => {
-      // Prevent dragging if started from interactive elements
-      const target = e.target;
-      if (
-        target.closest('input') ||
-        target.closest('textarea') ||
-        target.closest('select') ||
-        target.closest('button') ||
-        target.closest('pre.output')
-      ) {
-        e.preventDefault();
-        return;
-      }
-      div.classList.add("dragging");
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", r.id);
-    });
-
-    div.addEventListener("dragend", () => {
-      div.classList.remove("dragging");
-      wrap.querySelectorAll(".runner").forEach((el) => el.classList.remove("drag-over"));
-    });
-
-    div.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-      const dragging = wrap.querySelector(".runner.dragging");
-      if (dragging && dragging !== div) {
-        div.classList.add("drag-over");
-      }
-    });
-
-    div.addEventListener("dragleave", () => {
-      div.classList.remove("drag-over");
-    });
-
-    div.addEventListener("drop", async (e) => {
-      e.preventDefault();
-      div.classList.remove("drag-over");
-      const draggedId = e.dataTransfer.getData("text/plain");
-      const targetId = r.id;
-      if (draggedId === targetId) return;
-
-      // Reorder array
-      const draggedIdx = state.runners.findIndex((x) => x.id === draggedId);
-      const targetIdx = state.runners.findIndex((x) => x.id === targetId);
-      if (draggedIdx === -1 || targetIdx === -1) return;
-
-      const [removed] = state.runners.splice(draggedIdx, 1);
-      state.runners.splice(targetIdx, 0, removed);
-      renderRunners();
-      await autoSave();
-    });
   });
 
   wrap.querySelectorAll(`[data-toggle]`).forEach((t) => {
