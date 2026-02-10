@@ -14,6 +14,18 @@ const runtime = {
 const UI_STORAGE_KEY = "command-runner.ui";
 const MASKED_SECRET = "__SECRET_SET__";
 
+function normalizeLang(value) {
+  const s = String(value || "").trim().toLowerCase();
+  if (s.startsWith("de")) return "de";
+  if (s.startsWith("en")) return "en";
+  return "";
+}
+
+function detectDefaultLang() {
+  const nav = normalizeLang(navigator.language || "");
+  return nav || "de";
+}
+
 function loadUIState() {
   try {
     const raw = localStorage.getItem(UI_STORAGE_KEY);
@@ -24,6 +36,7 @@ function loadUIState() {
       runnerSectionCollapsed: !!parsed.runnerSectionCollapsed,
       notifySortMode: !!parsed.notifySortMode,
       runnerSortMode: !!parsed.runnerSortMode,
+      lang: normalizeLang(parsed.lang) || "",
     };
   } catch (e) {
     return {};
@@ -39,6 +52,7 @@ function saveUIState() {
         runnerSectionCollapsed: !!ui.runnerSectionCollapsed,
         notifySortMode: !!ui.notifySortMode,
         runnerSortMode: !!ui.runnerSortMode,
+        lang: ui.lang,
       }),
     );
   } catch (e) {
@@ -52,6 +66,7 @@ const ui = {
   runnerSectionCollapsed: loadedUIState.runnerSectionCollapsed ?? false,
   notifySortMode: loadedUIState.notifySortMode ?? false,
   runnerSortMode: loadedUIState.runnerSortMode ?? false,
+  lang: loadedUIState.lang || detectDefaultLang(),
   notifyJournalEntries: [],
   dirtyNotifyProfiles: new Set(),
   savedNotifySignatures: {},
@@ -59,15 +74,427 @@ const ui = {
   savedRunnerSignatures: {},
 };
 
+const I18N = {
+  de: {
+    sort_label: "Sortieren: {state}",
+    sort_on: "An",
+    sort_off: "Aus",
+    no_changes: "Keine Änderungen",
+    open_info_title: "Öffnet die Programm-Info",
+    lang_switch_aria: "Sprache",
+    lang_de_title: "Deutsch",
+    lang_en_title: "English",
+    notify_services_title: "Notification services",
+    runners_title: "Runners",
+    add_service: "+ Dienst",
+    add_runner: "+ Runner",
+    export: "⬇ Export",
+    import: "⬆ Import",
+    notification_journal: "Notification journal",
+    clear_journal: "Journal leeren",
+    events: "Events",
+    clear_events: "Events leeren",
+    close: "Schließen",
+    active_since: "Aktiv seit: {elapsed}",
+    journal_error: "FEHLER",
+    cmd_missing_reason: "Command fehlt: Bitte zuerst Command eintragen.",
+    cmd_missing_short: "Command fehlt.",
+    save_first_reason: "Bitte zuerst speichern (Bearbeitungsmodus).",
+    unknown_notify_service: "Unbekannter Notification-Dienst.",
+    service_name_missing: "Dienst-Name fehlt.",
+    user_key_missing: "User Key fehlt.",
+    api_token_missing: "API Token fehlt.",
+    service_fallback: "Dienst",
+    new_service_fallback: "Neuer Dienst",
+    new_runner_fallback: "Neu",
+    save_blocked: "SPEICHERN BLOCKIERT: {reasons}",
+    save_blocked_log: "SAVE BLOCKIERT: {reasons}",
+    infinite: "unendlich",
+    off: "aus",
+    failures: "{n} Fehler",
+    no_status: "(kein Status)",
+    notify_none_configured: "Keine Notification services konfiguriert. Klicke auf \"+ Dienst\" um einen hinzuzufügen.",
+    service_name_placeholder: "Dienst-Name",
+    move_up: "Nach oben",
+    move_down: "Nach unten",
+    service_active_title: "Service aktiv (klicken zum Deaktivieren)",
+    service_inactive_title: "Service inaktiv (klicken zum Aktivieren)",
+    active: "Aktiv",
+    inactive: "Inaktiv",
+    service_inactive: "Service ist inaktiv",
+    save: "💾 Speichern",
+    remove: "Remove",
+    secret_set: "***gesetzt***",
+    user_key_enter: "User Key eingeben",
+    api_token_enter: "API Token eingeben",
+    creds_hint: "Zugangsdaten werden verschleiert angezeigt. Neueingabe überschreibt bestehende Werte.",
+    service_enabled: "SERVICE \"{label}\" AKTIVIERT.",
+    service_disabled: "SERVICE \"{label}\" DEAKTIVIERT.",
+    test_notify_start: "TESTE NOTIFICATION-DIENST \"{name}\"...",
+    test_ok_log: "TEST OK FUER \"{name}\". RESPONSE: {response}",
+    test_ok_flash: "TEST ERFOLGREICH FUER \"{name}\".",
+    test_fail: "TEST FEHLGESCHLAGEN FUER \"{name}\": {err}",
+    confirm_delete_notify: "Notification service \"{name}\" wirklich löschen?",
+    notify_removed: "NOTIFICATION-SERVICE \"{name}\" ENTFERNT.",
+    notify_status_inactive_auto: "Inaktiv: {fail}/3 Fehlversuche. Gesendet: {sent}.",
+    notify_status_inactive_manual: "Inaktiv: manuell. Gesendet: {sent}.",
+    notify_status_active_fail: "Aktiv: {fail}/3 Fehlversuche. Gesendet: {sent}.",
+    notify_status_active_ok: "Aktiv: OK. Gesendet: {sent}.",
+    notify_auto_disabled_base: "{label} wurde nach {fail} Fehlern deaktiviert.",
+    notify_auto_disabled_reason_suffix: " Grund: {reason}",
+    confirm_delete_case: "Case {idx} wirklich löschen?",
+    case_pattern_placeholder: "z.B. passwort:\\s*(?P<pw>\\S+)",
+    case_message_placeholder: "z.B. Passwort: {pw}",
+    case_help: "Template: {match}, {g1}, {name} | Status fuer UP/DOWN/Recovery Logik",
+    runner_placeholder: "Runner Name",
+    lock_active_title: "Während Run aktiv gesperrt.",
+    clone_needs_saved_title: "Nur im gespeicherten Zustand clonbar. Erst speichern.",
+    notifications: "Benachrichtigungen",
+    no_services_available: "Keine Dienste verfügbar",
+    notify_on_title: "Benachrichtigung EIN",
+    notify_off_title: "Benachrichtigung AUS",
+    on: "Ein",
+    off_short: "Aus",
+    enable_first: "Erst Ein schalten",
+    updates_only: "Updates only",
+    updates_only_title_on: "Nur Statuswechsel senden",
+    updates_only_title_off: "Jeden Match senden",
+    logging_title: "Wenn aus: kein Schreiben in data/run_<runner_id>.log",
+    logging_on: "EIN",
+    logging_off: "AUS",
+    open_log: "📄 Log öffnen",
+    clear_log: "🗑️ Log leeren",
+    confirm_clear_log: "Log-Datei wirklich leeren?",
+    log_cleared_log: "LOG FUER {rid} GELEERT.",
+    log_cleared_flash: "LOG GELEERT FUER {rid}.",
+    log_clear_failed: "LOG LEEREN FEHLGESCHLAGEN FUER {rid}: {err}",
+    scheduler: "Scheduler (nach Run-Ende)",
+    hours: "Stunden",
+    minutes: "Minuten",
+    seconds: "Sekunden",
+    total_runs: "Anzahl Runs",
+    alert_cooldown: "Alert-Cooldown",
+    escalation: "Eskalation",
+    auto_pause: "Auto-Pause",
+    cases: "Cases",
+    cases_hint: "Regex pro Output-Zeile. Jeder Match → Pushover (nur wenn Token+UserKey gesetzt). Leerer Case (pattern+message leer) → am Ende letzte Output-Zeile senden.",
+    add_case: "+ Case",
+    add_case_title: "Neuen Case hinzufügen",
+    copy: "📋 Copy",
+    copy_title: "In Zwischenablage kopieren",
+    output: "Output",
+    clipboard_blocked: "Browser blockiert Zwischenablage.",
+    copied: "✓ Copied",
+    output_copied: "OUTPUT VON {rid} IN ZWISCHENABLAGE KOPIERT.",
+    copy_failed: "COPY FEHLGESCHLAGEN: {err}",
+    stop_signal_sent: "STOPP-SIGNAL AN {rid} GESENDET.",
+    run_blocked_edit: "RUN BLOCKIERT: {rid} IST IM BEARBEITUNGSMODUS. BITTE ZUERST SPEICHERN.",
+    run_not_possible_missing_cmd: "RUN NICHT MOEGLICH: BEI {rid} FEHLT DER COMMAND.",
+    runner_starting: "{rid} STARTET JETZT.",
+    runstop_failed: "RUN/STOP FEHLGESCHLAGEN FUER {rid}: {err}",
+    confirm_delete_runner: "Runner \"{name}\" wirklich löschen?",
+    runner_removed: "RUNNER \"{name}\" ENTFERNT.",
+    clone_blocked: "CLONE BLOCKIERT: BITTE ZUERST ALLE AENDERUNGEN SPEICHERN.",
+    runner_cloned: "RUNNER \"{source}\" GEKLONT{target}.",
+    clone_failed: "CLONE FEHLGESCHLAGEN: {err}",
+    journal_load_failed: "JOURNAL-LADEN FEHLGESCHLAGEN: {err}",
+    running_label: "running",
+    scheduled_label: "scheduled",
+    run_started: "{rid}: RUN GESTARTET.",
+    run_stopping: "{rid}: STOPPE RUN...",
+    run_stopped: "{rid}: RUN GESTOPPT.",
+    run_scheduled: "{rid}: NAECHSTER RUN IN {sec} SEKUNDEN GEPLANT.",
+    auto_pause_msg: "{rid}: AUTO-PAUSE NACH {n} FEHLERN. MANUELLER RUN NEEDED.",
+    runner_auto_pause_state: "Auto-Pause nach {n} Fehlern",
+    run_finished: "{rid}: RUN BEENDET (EXIT={code}, STOPPED={stopped}).",
+    run_finished_error: "{rid} BEENDET MIT FEHLER (EXIT={code}).",
+    event_stream_unstable: "Event-Stream instabil. Verbindung wird neu aufgebaut.",
+    event_stream_unstable_log: "EVENT-STREAM VERBINDUNG INSTABIL.",
+    autosave_ok: "AUTO-SAVE ERFOLGREICH.",
+    save_failed_log: "SAVE FEHLGESCHLAGEN: {err}",
+    save_failed_flash: "SPEICHERN FEHLGESCHLAGEN: {err}",
+    notify_sort_mode: "NOTIFICATION-SORTIERMODUS {state}.",
+    runner_sort_mode: "RUNNER-SORTIERMODUS {state}.",
+    sort_mode_on_upper: "AKTIV",
+    sort_mode_off_upper: "AUS",
+    journal_cleared: "NOTIFICATION-JOURNAL GELEERT.",
+    journal_clear_failed: "JOURNAL LEEREN FEHLGESCHLAGEN: {err}",
+    events_cleared: "EVENTS GELEERT.",
+    new_notify_default_name: "Neuer Pushover-Dienst",
+    new_runner_default_name: "New Runner",
+    new_notify_created: "NEUER NOTIFICATION-DIENST ERSTELLT. PFLICHTFELDER AUSFUELLEN UND SPEICHERN.",
+    new_runner_created: "NEUER RUNNER ERSTELLT UND GESPEICHERT.",
+    new_runner_created_log: "RUNNER {rid} ERSTELLT UND GESPEICHERT.",
+    export_starting: "EXPORT WIRD GESTARTET...",
+    export_started_log: "EXPORT GESTARTET. DOWNLOAD SOLLTE JETZT LAUFEN.",
+    export_started_flash: "EXPORT GESTARTET. DOWNLOAD SOLLTE JETZT LAUFEN.",
+    export_failed: "EXPORT FEHLGESCHLAGEN: {err}",
+    import_running: "IMPORT LAEUFT: {name}",
+    import_ok: "IMPORT ERFOLGREICH: {count} RUNNER UEBERNOMMEN.",
+    import_failed: "IMPORT FEHLGESCHLAGEN: {err}",
+    system_ready: "System bereit.",
+    system_ready_log: "SYSTEM BEREIT.",
+    start_failed: "START FEHLGESCHLAGEN: {err}",
+  },
+  en: {
+    sort_label: "Sort: {state}",
+    sort_on: "On",
+    sort_off: "Off",
+    no_changes: "No changes",
+    open_info_title: "Open program info",
+    lang_switch_aria: "Language",
+    lang_de_title: "German",
+    lang_en_title: "English",
+    notify_services_title: "Notification services",
+    runners_title: "Runners",
+    add_service: "+ Service",
+    add_runner: "+ Runner",
+    export: "⬇ Export",
+    import: "⬆ Import",
+    notification_journal: "Notification journal",
+    clear_journal: "Clear journal",
+    events: "Events",
+    clear_events: "Clear events",
+    close: "Close",
+    active_since: "Active for: {elapsed}",
+    journal_error: "ERROR",
+    cmd_missing_reason: "Command missing: please enter a command first.",
+    cmd_missing_short: "Command missing.",
+    save_first_reason: "Please save first (edit mode).",
+    unknown_notify_service: "Unknown notification service.",
+    service_name_missing: "Service name is missing.",
+    user_key_missing: "User key is missing.",
+    api_token_missing: "API token is missing.",
+    service_fallback: "Service",
+    new_service_fallback: "New service",
+    new_runner_fallback: "New",
+    save_blocked: "SAVE BLOCKED: {reasons}",
+    save_blocked_log: "SAVE BLOCKED: {reasons}",
+    infinite: "infinite",
+    off: "off",
+    failures: "{n} failures",
+    no_status: "(no status)",
+    notify_none_configured: "No notification services configured. Click \"+ Service\" to add one.",
+    service_name_placeholder: "Service name",
+    move_up: "Move up",
+    move_down: "Move down",
+    service_active_title: "Service active (click to disable)",
+    service_inactive_title: "Service inactive (click to enable)",
+    active: "Active",
+    inactive: "Inactive",
+    service_inactive: "Service is inactive",
+    save: "💾 Save",
+    remove: "Remove",
+    secret_set: "***set***",
+    user_key_enter: "Enter user key",
+    api_token_enter: "Enter API token",
+    creds_hint: "Credentials are masked. Entering new values overwrites existing ones.",
+    service_enabled: "SERVICE \"{label}\" ENABLED.",
+    service_disabled: "SERVICE \"{label}\" DISABLED.",
+    test_notify_start: "TESTING NOTIFICATION SERVICE \"{name}\"...",
+    test_ok_log: "TEST OK FOR \"{name}\". RESPONSE: {response}",
+    test_ok_flash: "TEST SUCCESSFUL FOR \"{name}\".",
+    test_fail: "TEST FAILED FOR \"{name}\": {err}",
+    confirm_delete_notify: "Really delete notification service \"{name}\"?",
+    notify_removed: "NOTIFICATION SERVICE \"{name}\" REMOVED.",
+    notify_status_inactive_auto: "Inactive: {fail}/3 failures. Sent: {sent}.",
+    notify_status_inactive_manual: "Inactive: manual. Sent: {sent}.",
+    notify_status_active_fail: "Active: {fail}/3 failures. Sent: {sent}.",
+    notify_status_active_ok: "Active: OK. Sent: {sent}.",
+    notify_auto_disabled_base: "{label} was disabled after {fail} failures.",
+    notify_auto_disabled_reason_suffix: " Reason: {reason}",
+    confirm_delete_case: "Really delete case {idx}?",
+    case_pattern_placeholder: "e.g. password:\\s*(?P<pw>\\S+)",
+    case_message_placeholder: "e.g. Password: {pw}",
+    case_help: "Template: {match}, {g1}, {name} | Status for UP/DOWN/Recovery logic",
+    runner_placeholder: "Runner name",
+    lock_active_title: "Locked while active.",
+    clone_needs_saved_title: "Can only be cloned when saved. Save first.",
+    notifications: "Notifications",
+    no_services_available: "No services available",
+    notify_on_title: "Notifications ON",
+    notify_off_title: "Notifications OFF",
+    on: "On",
+    off_short: "Off",
+    enable_first: "Enable first",
+    updates_only: "Updates only",
+    updates_only_title_on: "Send status changes only",
+    updates_only_title_off: "Send every match",
+    logging_title: "If off: no writing to data/run_<runner_id>.log",
+    logging_on: "ON",
+    logging_off: "OFF",
+    open_log: "📄 Open log",
+    clear_log: "🗑️ Clear log",
+    confirm_clear_log: "Really clear the log file?",
+    log_cleared_log: "LOG FOR {rid} CLEARED.",
+    log_cleared_flash: "LOG CLEARED FOR {rid}.",
+    log_clear_failed: "CLEAR LOG FAILED FOR {rid}: {err}",
+    scheduler: "Scheduler (after run end)",
+    hours: "Hours",
+    minutes: "Minutes",
+    seconds: "Seconds",
+    total_runs: "Total runs",
+    alert_cooldown: "Alert cooldown",
+    escalation: "Escalation",
+    auto_pause: "Auto pause",
+    cases: "Cases",
+    cases_hint: "Regex per output line. Each match → Pushover (only if token+user key are set). Empty case (empty pattern+message) → send last output line at the end.",
+    add_case: "+ Case",
+    add_case_title: "Add new case",
+    copy: "📋 Copy",
+    copy_title: "Copy to clipboard",
+    output: "Output",
+    clipboard_blocked: "Clipboard blocked by the browser.",
+    copied: "✓ Copied",
+    output_copied: "OUTPUT FROM {rid} COPIED TO CLIPBOARD.",
+    copy_failed: "COPY FAILED: {err}",
+    stop_signal_sent: "STOP SIGNAL SENT TO {rid}.",
+    run_blocked_edit: "RUN BLOCKED: {rid} IS IN EDIT MODE. PLEASE SAVE FIRST.",
+    run_not_possible_missing_cmd: "RUN NOT POSSIBLE: {rid} HAS NO COMMAND.",
+    runner_starting: "{rid} IS STARTING NOW.",
+    runstop_failed: "RUN/STOP FAILED FOR {rid}: {err}",
+    confirm_delete_runner: "Really delete runner \"{name}\"?",
+    runner_removed: "RUNNER \"{name}\" REMOVED.",
+    clone_blocked: "CLONE BLOCKED: PLEASE SAVE ALL CHANGES FIRST.",
+    runner_cloned: "RUNNER \"{source}\" CLONED{target}.",
+    clone_failed: "CLONE FAILED: {err}",
+    journal_load_failed: "FAILED TO LOAD JOURNAL: {err}",
+    running_label: "running",
+    scheduled_label: "scheduled",
+    run_started: "{rid}: RUN STARTED.",
+    run_stopping: "{rid}: STOPPING RUN...",
+    run_stopped: "{rid}: RUN STOPPED.",
+    run_scheduled: "{rid}: NEXT RUN SCHEDULED IN {sec} SECONDS.",
+    auto_pause_msg: "{rid}: AUTO PAUSED AFTER {n} FAILURES. MANUAL RUN NEEDED.",
+    runner_auto_pause_state: "Auto-pause after {n} failures",
+    run_finished: "{rid}: RUN FINISHED (EXIT={code}, STOPPED={stopped}).",
+    run_finished_error: "{rid} FINISHED WITH ERROR (EXIT={code}).",
+    event_stream_unstable: "Event stream unstable. Reconnecting.",
+    event_stream_unstable_log: "EVENT STREAM CONNECTION UNSTABLE.",
+    autosave_ok: "AUTO-SAVE SUCCESSFUL.",
+    save_failed_log: "SAVE FAILED: {err}",
+    save_failed_flash: "SAVE FAILED: {err}",
+    notify_sort_mode: "NOTIFICATION SORT MODE {state}.",
+    runner_sort_mode: "RUNNER SORT MODE {state}.",
+    sort_mode_on_upper: "ON",
+    sort_mode_off_upper: "OFF",
+    journal_cleared: "NOTIFICATION JOURNAL CLEARED.",
+    journal_clear_failed: "CLEAR JOURNAL FAILED: {err}",
+    events_cleared: "EVENTS CLEARED.",
+    new_notify_default_name: "New Pushover service",
+    new_runner_default_name: "New Runner",
+    new_notify_created: "NEW NOTIFICATION SERVICE CREATED. FILL REQUIRED FIELDS AND SAVE.",
+    new_runner_created: "NEW RUNNER CREATED AND SAVED.",
+    new_runner_created_log: "RUNNER {rid} CREATED AND SAVED.",
+    export_starting: "STARTING EXPORT...",
+    export_started_log: "EXPORT STARTED. DOWNLOAD SHOULD START NOW.",
+    export_started_flash: "EXPORT STARTED. DOWNLOAD SHOULD START NOW.",
+    export_failed: "EXPORT FAILED: {err}",
+    import_running: "IMPORT RUNNING: {name}",
+    import_ok: "IMPORT SUCCESSFUL: {count} RUNNERS IMPORTED.",
+    import_failed: "IMPORT FAILED: {err}",
+    system_ready: "System ready.",
+    system_ready_log: "SYSTEM READY.",
+    start_failed: "START FAILED: {err}",
+  },
+};
+
+function t(key, vars = null) {
+  const lang = ui.lang === "en" ? "en" : "de";
+  const dict = I18N[lang] || I18N.de;
+  let s = dict[key];
+  if (s === undefined) s = I18N.de[key];
+  if (s === undefined) s = String(key);
+  if (vars && typeof vars === "object") {
+    for (const [k, v] of Object.entries(vars)) {
+      s = s.replaceAll(`{${k}}`, String(v));
+    }
+  }
+  return s;
+}
+
+function applyLanguageToStaticDom() {
+  document.documentElement.lang = ui.lang === "en" ? "en" : "de";
+
+  const openInfoTitle = el("openInfoTitle");
+  if (openInfoTitle) openInfoTitle.title = t("open_info_title");
+
+  const notifyJournalTitle = el("notifyJournalTitle");
+  if (notifyJournalTitle) notifyJournalTitle.textContent = t("notification_journal");
+
+  const clearNotifyJournalBtn = el("clearNotifyJournalBtn");
+  if (clearNotifyJournalBtn) clearNotifyJournalBtn.textContent = t("clear_journal");
+
+  const eventsTitle = el("eventsTitle");
+  if (eventsTitle) eventsTitle.textContent = t("events");
+
+  const clearEventsBtn = el("clearEventsBtn");
+  if (clearEventsBtn) clearEventsBtn.textContent = t("clear_events");
+
+  const addNotifyBtn = el("addNotifyBtn");
+  if (addNotifyBtn) addNotifyBtn.textContent = t("add_service");
+
+  const addRunnerBtn = el("addRunnerBtn");
+  if (addRunnerBtn) addRunnerBtn.textContent = t("add_runner");
+
+  const exportBtn = el("exportBtn");
+  if (exportBtn) exportBtn.textContent = t("export");
+
+  const importBtn = el("importBtn");
+  if (importBtn) importBtn.textContent = t("import");
+
+  const closeInfoBtn = el("closeInfoBtn");
+  if (closeInfoBtn) closeInfoBtn.textContent = t("close");
+
+  const infoDe = el("infoBodyDe");
+  const infoEn = el("infoBodyEn");
+  if (infoDe && infoEn) {
+    const showEn = ui.lang === "en";
+    infoDe.classList.toggle("hidden", showEn);
+    infoEn.classList.toggle("hidden", !showEn);
+  }
+
+  const langSwitch = el("langSwitch");
+  if (langSwitch) langSwitch.setAttribute("aria-label", t("lang_switch_aria"));
+
+  const deBtn = el("langDeBtn");
+  const enBtn = el("langEnBtn");
+  if (deBtn) {
+    deBtn.title = t("lang_de_title");
+    deBtn.classList.toggle("primary", ui.lang !== "en");
+  }
+  if (enBtn) {
+    enBtn.title = t("lang_en_title");
+    enBtn.classList.toggle("primary", ui.lang === "en");
+  }
+
+  // Keep buttons consistent even before the first state render completes.
+  syncSortModeButtons();
+}
+
+function setLanguage(nextLang) {
+  const normalized = normalizeLang(nextLang) || "de";
+  if (normalized === ui.lang) return;
+  ui.lang = normalized;
+  saveUIState();
+  applyLanguageToStaticDom();
+  syncSortModeButtons();
+  renderNotifyProfiles();
+  renderRunners();
+  renderNotifyJournal();
+  tickRunnerElapsed();
+  updateGlobalRunningStatus();
+}
+
 function syncSortModeButtons() {
   const notifyBtn = el("sortNotifyBtn");
   const runnerBtn = el("sortRunnerBtn");
   if (notifyBtn) {
-    notifyBtn.textContent = `Sortieren: ${ui.notifySortMode ? "An" : "Aus"}`;
+    notifyBtn.textContent = t("sort_label", { state: ui.notifySortMode ? t("sort_on") : t("sort_off") });
     notifyBtn.classList.toggle("primary", !!ui.notifySortMode);
   }
   if (runnerBtn) {
-    runnerBtn.textContent = `Sortieren: ${ui.runnerSortMode ? "An" : "Aus"}`;
+    runnerBtn.textContent = t("sort_label", { state: ui.runnerSortMode ? t("sort_on") : t("sort_off") });
     runnerBtn.classList.toggle("primary", !!ui.runnerSortMode);
   }
 }
@@ -104,7 +531,8 @@ function formatTime(isoString) {
   if (!isoString) return "";
   try {
     const d = new Date(isoString);
-    return d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const locale = ui.lang === "en" ? "en-US" : "de-DE";
+    return d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   } catch (e) {
     return isoString;
   }
@@ -130,7 +558,8 @@ function formatDateTime(isoString) {
   if (!isoString) return "";
   try {
     const d = new Date(isoString);
-    return d.toLocaleString("de-DE", {
+    const locale = ui.lang === "en" ? "en-US" : "de-DE";
+    return d.toLocaleString(locale, {
       day: "2-digit",
       month: "2-digit",
       year: "2-digit",
@@ -164,7 +593,7 @@ function tickRunnerElapsed() {
       if (s) {
         node.classList.remove("hidden");
         node.textContent = `⏱ ${s}`;
-        node.title = `Aktiv seit: ${s}`;
+        node.title = t("active_since", { elapsed: s });
         return;
       }
     }
@@ -188,7 +617,7 @@ function formatNotifyJournalLine(item) {
   const msg = (item.message || "").replace(/\s+/g, " ").trim();
   const err = (item.error || "").replace(/\s+/g, " ").trim();
   if (err) {
-    return `[${ts}] ${delivery} | ${runner} -> ${service} | ${msg} | FEHLER: ${err}`;
+    return `[${ts}] ${delivery} | ${runner} -> ${service} | ${msg} | ${t("journal_error")}: ${err}`;
   }
   return `[${ts}] ${delivery} | ${runner} -> ${service} | ${msg}`;
 }
@@ -390,7 +819,7 @@ function syncNotifyDirtyButton(npid) {
   const isDirty = ui.dirtyNotifyProfiles.has(npid);
   btn.disabled = !isDirty;
   if (!isDirty) {
-    btn.title = "Keine Änderungen";
+    btn.title = t("no_changes");
   } else {
     btn.removeAttribute("title");
   }
@@ -534,7 +963,7 @@ function syncRunnerDirtyButton(rid) {
     const isDirty = ui.dirtyRunners.has(rid);
     btn.disabled = !isDirty;
     if (!isDirty) {
-      btn.title = "Keine Änderungen";
+      btn.title = t("no_changes");
     } else {
       btn.removeAttribute("title");
     }
@@ -558,10 +987,10 @@ function syncRunnerRunButton(rid) {
   let reason = "";
   if (!r || isRunnerCommandMissing(r)) {
     shouldDisable = true;
-    reason = "Command fehlt: Bitte zuerst Command eintragen.";
+    reason = t("cmd_missing_reason");
   } else if (ui.dirtyRunners.has(rid) || isRunnerSaveBlocked(r)) {
     shouldDisable = true;
-    reason = "Bitte zuerst speichern (Bearbeitungsmodus).";
+    reason = t("save_first_reason");
   }
   btn.disabled = shouldDisable;
   if (shouldDisable) {
@@ -594,11 +1023,11 @@ function clearAllDirtyRunners() {
 }
 
 function notifyProfileValidationError(np) {
-  if (!np) return "Unbekannter Notification-Dienst.";
-  if ((np.name || "").trim() === "") return "Dienst-Name fehlt.";
+  if (!np) return t("unknown_notify_service");
+  if ((np.name || "").trim() === "") return t("service_name_missing");
   if ((np.type || "pushover") === "pushover") {
-    if ((np.config?.user_key || "").trim() === "") return "User Key fehlt.";
-    if ((np.config?.api_token || "").trim() === "") return "API Token fehlt.";
+    if ((np.config?.user_key || "").trim() === "") return t("user_key_missing");
+    if ((np.config?.api_token || "").trim() === "") return t("api_token_missing");
   }
   return "";
 }
@@ -615,18 +1044,18 @@ function validateStateBeforePersist() {
   for (const np of state.notify_profiles) {
     if (!np?._isNew) continue;
     const err = notifyProfileValidationError(np);
-    if (err) blocking.push(`${np.name || np.id || "Neuer Dienst"}: ${err}`);
+    if (err) blocking.push(`${np.name || np.id || t("new_service_fallback")}: ${err}`);
   }
   for (const r of state.runners) {
     if (!r?._isNew) continue;
     if (isRunnerCommandMissing(r)) {
-      blocking.push(`Runner "${r.name || r.id || "Neu"}": Command fehlt.`);
+      blocking.push(`Runner "${r.name || r.id || t("new_runner_fallback")}": ${t("cmd_missing_short")}`);
     }
   }
   if (blocking.length === 0) return true;
-  const msg = `SPEICHERN BLOCKIERT: ${blocking.join(" | ")}`;
+  const msg = t("save_blocked", { reasons: blocking.join(" | ") });
   hulkFlash("error", msg);
-  logHulk("error", `SAVE BLOCKIERT: ${blocking.join(" | ")}`);
+  logHulk("error", t("save_blocked_log", { reasons: blocking.join(" | ") }));
   return false;
 }
 
@@ -638,7 +1067,8 @@ function renderNotifySection() {
   const sortBtn = el("sortNotifyBtn");
 
   if (title) {
-    title.textContent = count > 0 ? `Notification services (${count})` : "Notification services";
+    const base = t("notify_services_title");
+    title.textContent = count > 0 ? `${base} (${count})` : base;
   }
   if (toggle) {
     toggle.textContent = ui.notifySectionCollapsed ? "+" : "-";
@@ -664,7 +1094,8 @@ function renderRunnerSection() {
   const sortBtn = el("sortRunnerBtn");
 
   if (title) {
-    title.textContent = count > 0 ? `Runners (${count})` : "Runners";
+    const base = t("runners_title");
+    title.textContent = count > 0 ? `${base} (${count})` : base;
   }
   if (toggle) {
     toggle.textContent = ui.runnerSectionCollapsed ? "+" : "-";
@@ -691,13 +1122,13 @@ function scheduleOptions(max) {
 function runsOptions() {
   let opts = `<option value="1">1</option>`;
   for (let i = 2; i <= 100; i++) opts += `<option value="${i}">${i}</option>`;
-  opts += `<option value="-1">unendlich</option>`;
+  opts += `<option value="-1">${t("infinite")}</option>`;
   return opts;
 }
 
 function formatSecondsLabel(sec) {
   const s = Number(sec);
-  if (!Number.isFinite(s) || s <= 0) return "aus";
+  if (!Number.isFinite(s) || s <= 0) return t("off");
   if (s < 60) return `${s}s`;
   if (s % 3600 === 0) return `${s / 3600}h`;
   if (s % 60 === 0) return `${s / 60}m`;
@@ -717,7 +1148,7 @@ function escalationOptions() {
 }
 
 function failurePauseOptions() {
-  return optionsFromValues([0, 3, 5, 10, 15], (v) => (v === 0 ? "aus" : `${v} Fehler`));
+  return optionsFromValues([0, 3, 5, 10, 15], (v) => (v === 0 ? t("off") : t("failures", { n: v })));
 }
 
 function ensureSelectValue(sel, value, label) {
@@ -736,7 +1167,7 @@ function ensureSelectValue(sel, value, label) {
 function caseStateOptions(selected) {
   const curr = (selected || "").toUpperCase();
   const vals = [
-    ["", "(kein Status)"],
+    ["", t("no_status")],
     ["UP", "UP"],
     ["DOWN", "DOWN"],
     ["WARN", "WARN"],
@@ -837,7 +1268,7 @@ function renderNotifyProfiles() {
   refreshAllNotifyDirtyStates();
 
   if (state.notify_profiles.length === 0) {
-    wrap.innerHTML = '<p class="hint">Keine Notification services konfiguriert. Klicke auf "+ Dienst" um einen hinzuzufügen.</p>';
+    wrap.innerHTML = `<p class="hint">${escapeHtml(t("notify_none_configured"))}</p>`;
     return;
   }
 
@@ -848,52 +1279,55 @@ function renderNotifyProfiles() {
     const isActive = np.active !== false;
     const failCount = Math.max(0, Number(np.failure_count || 0));
     const sentCount = Math.max(0, Number(np.sent_count || 0));
-    const notifyStatusText = !isActive
-      ? (failCount >= 3
-        ? `Inaktiv: ${failCount}/3 Fehlversuche. Gesendet: ${sentCount}.`
-        : `Inaktiv: manuell. Gesendet: ${sentCount}.`)
-      : (failCount > 0
-        ? `Aktiv: ${failCount}/3 Fehlversuche. Gesendet: ${sentCount}.`
-        : `Aktiv: OK. Gesendet: ${sentCount}.`);
+    let notifyStatusText = "";
+    if (!isActive) {
+      notifyStatusText = (failCount >= 3)
+        ? t("notify_status_inactive_auto", { fail: failCount, sent: sentCount })
+        : t("notify_status_inactive_manual", { sent: sentCount });
+    } else {
+      notifyStatusText = (failCount > 0)
+        ? t("notify_status_active_fail", { fail: failCount, sent: sentCount })
+        : t("notify_status_active_ok", { sent: sentCount });
+    }
     const notifyStatusKind = !isActive ? "error" : (failCount >= 2 ? "warn" : (failCount > 0 ? "info" : "ok"));
     const div = document.createElement("div");
     div.className = `notifyProfile${isSaveableDirty ? " is-dirty" : ""}`;
     div.dataset.notifyId = np.id;
     div.innerHTML = `
-      <div class="notifyHead">
-        <div class="notifyTitle">
-          <div class="notifyTitleRow">
-            <span class="toggle" data-toggle-notify="${np.id}">${np._collapsed ? "+" : "-"}</span>
-            <input data-npname="${np.id}" value="${escapeHtml(np.name)}" placeholder="Dienst-Name" />
-            <span class="small">${np.type}</span>
-          </div>
-          <span class="small notifyStateText ${notifyStatusKind}" title="${escapeHtml(notifyStatusText)}">${escapeHtml(notifyStatusText)}</span>
-        </div>
-	        <div class="row gap center wrapline notifyActions">
-          <div class="row gap center reorderControls ${ui.notifySortMode ? "" : "hidden"}">
-            <button class="btn" data-move-np-up="${np.id}" ${idx === 0 ? "disabled" : ""} title="Nach oben">↑</button>
-            <button class="btn" data-move-np-down="${np.id}" ${idx === state.notify_profiles.length - 1 ? "disabled" : ""} title="Nach unten">↓</button>
-          </div>
-	          <button class="btn ${isActive ? "primary" : "danger"}" data-toggle-npactive="${np.id}" title="${isActive ? "Service aktiv (klicken zum Deaktivieren)" : "Service inaktiv (klicken zum Aktivieren)"}">${isActive ? "Aktiv" : "Inaktiv"}</button>
-	          <button class="btn" data-test-notify="${np.id}" ${isActive ? "" : "disabled title=\"Service ist inaktiv\""}>Test</button>
-	          <button class="btn primary notifySaveBtn ${isDirty ? "dirty" : ""} ${saveBlocked ? "invalid" : ""}" data-save-npname="${np.id}" ${isDirty ? "" : "disabled title=\"Keine Änderungen\""}>💾 Speichern</button>
-	          <button class="btn danger" data-del-notify="${np.id}">Remove</button>
+	      <div class="notifyHead">
+	        <div class="notifyTitle">
+	          <div class="notifyTitleRow">
+	            <span class="toggle" data-toggle-notify="${np.id}">${np._collapsed ? "+" : "-"}</span>
+	            <input data-npname="${np.id}" value="${escapeHtml(np.name)}" placeholder="${escapeHtml(t("service_name_placeholder"))}" />
+	            <span class="small">${np.type}</span>
+	          </div>
+	          <span class="small notifyStateText ${notifyStatusKind}" title="${escapeHtml(notifyStatusText)}">${escapeHtml(notifyStatusText)}</span>
 	        </div>
+		        <div class="row gap center wrapline notifyActions">
+	          <div class="row gap center reorderControls ${ui.notifySortMode ? "" : "hidden"}">
+	            <button class="btn" data-move-np-up="${np.id}" ${idx === 0 ? "disabled" : ""} title="${escapeHtml(t("move_up"))}">↑</button>
+	            <button class="btn" data-move-np-down="${np.id}" ${idx === state.notify_profiles.length - 1 ? "disabled" : ""} title="${escapeHtml(t("move_down"))}">↓</button>
+	          </div>
+		          <button class="btn ${isActive ? "primary" : "danger"}" data-toggle-npactive="${np.id}" title="${escapeHtml(isActive ? t("service_active_title") : t("service_inactive_title"))}">${escapeHtml(isActive ? t("active") : t("inactive"))}</button>
+		          <button class="btn" data-test-notify="${np.id}" ${isActive ? "" : `disabled title="${escapeHtml(t("service_inactive"))}"`}>Test</button>
+		          <button class="btn primary notifySaveBtn ${isDirty ? "dirty" : ""} ${saveBlocked ? "invalid" : ""}" data-save-npname="${np.id}" ${isDirty ? "" : `disabled title="${escapeHtml(t("no_changes"))}"`}>${escapeHtml(t("save"))}</button>
+		          <button class="btn danger" data-del-notify="${np.id}">${escapeHtml(t("remove"))}</button>
+		        </div>
+		      </div>
+	      <div class="notifyBody ${np._collapsed ? "hidden" : ""}" data-nbody="${np.id}">
+	        <div class="grid2">
+	          <label>
+	            <span>User Key</span>
+	            <input type="password" data-npuser="${np.id}" placeholder="${np.config.user_key ? escapeHtml(t("secret_set")) : escapeHtml(t("user_key_enter"))}" />
+	          </label>
+	          <label>
+	            <span>API Token</span>
+	            <input type="password" data-nptoken="${np.id}" placeholder="${np.config.api_token ? escapeHtml(t("secret_set")) : escapeHtml(t("api_token_enter"))}" />
+	          </label>
+	        </div>
+	        <p class="hint" style="margin-top:8px;">${escapeHtml(t("creds_hint"))}</p>
 	      </div>
-      <div class="notifyBody ${np._collapsed ? "hidden" : ""}" data-nbody="${np.id}">
-        <div class="grid2">
-          <label>
-            <span>User Key</span>
-            <input type="password" data-npuser="${np.id}" placeholder="${np.config.user_key ? '***gesetzt***' : 'User Key eingeben'}" />
-          </label>
-          <label>
-            <span>API Token</span>
-            <input type="password" data-nptoken="${np.id}" placeholder="${np.config.api_token ? '***gesetzt***' : 'API Token eingeben'}" />
-          </label>
-        </div>
-        <p class="hint" style="margin-top:8px;">Zugangsdaten werden verschleiert angezeigt. Neueingabe überschreibt bestehende Werte.</p>
-      </div>
-    `;
+	    `;
 
     wrap.appendChild(div);
   });
@@ -983,11 +1417,11 @@ function renderNotifyProfiles() {
       if (saved) {
         const label = np.name || npid;
         if (nextActive) {
-          hulkFlash("success", `SERVICE "${label}" AKTIVIERT.`, 3200);
-          logHulk("success", `SERVICE "${label}" AKTIVIERT.`);
+          hulkFlash("success", t("service_enabled", { label }), 3200);
+          logHulk("success", t("service_enabled", { label }));
         } else {
-          hulkFlash("info", `SERVICE "${label}" DEAKTIVIERT.`, 3200);
-          logHulk("info", `SERVICE "${label}" DEAKTIVIERT.`);
+          hulkFlash("info", t("service_disabled", { label }), 3200);
+          logHulk("info", t("service_disabled", { label }));
         }
       }
     });
@@ -1003,15 +1437,15 @@ function renderNotifyProfiles() {
       const saved = await autoSave();
       if (!saved) return;
 
-      logHulk("info", `TESTE NOTIFICATION-DIENST "${np.name}"...`);
-      hulkFlash("info", `TESTE NOTIFICATION-DIENST "${np.name}"...`, 3500);
+      logHulk("info", t("test_notify_start", { name: np.name }));
+      hulkFlash("info", t("test_notify_start", { name: np.name }), 3500);
       try {
         const res = await apiPost("/api/pushover_test", { profile_id: npid, message: "" });
-        logHulk("success", `TEST OK FUER "${np.name}". RESPONSE: ${JSON.stringify(res.result)}`);
-        hulkFlash("success", `TEST ERFOLGREICH FUER "${np.name}".`, 4200);
+        logHulk("success", t("test_ok_log", { name: np.name, response: JSON.stringify(res.result) }));
+        hulkFlash("success", t("test_ok_flash", { name: np.name }), 4200);
       } catch (e) {
-        logHulk("error", `TEST FEHLGESCHLAGEN FUER "${np.name}": ${e.message}`);
-        hulkFlash("error", `TEST FEHLGESCHLAGEN FUER "${np.name}": ${e.message}`);
+        logHulk("error", t("test_fail", { name: np.name, err: e.message }));
+        hulkFlash("error", t("test_fail", { name: np.name, err: e.message }));
       }
     });
   });
@@ -1020,9 +1454,9 @@ function renderNotifyProfiles() {
     btn.addEventListener("click", async () => {
       const npid = btn.getAttribute("data-del-notify");
       const np = state.notify_profiles.find((x) => x.id === npid);
-      const name = np ? np.name : "Dienst";
+      const name = np ? np.name : t("service_fallback");
 
-      if (!confirm(`Notification service "${name}" wirklich löschen?`)) {
+      if (!confirm(t("confirm_delete_notify", { name }))) {
         return;
       }
 
@@ -1036,8 +1470,8 @@ function renderNotifyProfiles() {
       renderRunners();
       const saved = await autoSave();
       if (saved) {
-        hulkFlash("success", `NOTIFICATION-SERVICE "${name}" ENTFERNT.`, 3200);
-        logHulk("success", `NOTIFICATION-SERVICE "${name}" ENTFERNT.`);
+        hulkFlash("success", t("notify_removed", { name }), 3200);
+        logHulk("success", t("notify_removed", { name }));
       }
     });
   });
@@ -1055,29 +1489,29 @@ function renderCasesForRunner(rid) {
   r.cases.forEach((c, idx) => {
     const div = document.createElement("div");
     div.className = "case";
-    div.innerHTML = `
-      <div class="small">Case ${idx + 1}</div>
-      <div class="grid3" style="margin-top:8px;">
-        <label>
-          <span>pattern (Regex)</span>
-          <input data-cpat="${c.id}" value="${escapeHtml(c.pattern)}" placeholder="z.B. passwort:\\s*(?P<pw>\\S+)" ${lockAttr} />
-        </label>
-        <label>
-          <span>message template</span>
-          <input data-cmsg="${c.id}" value="${escapeHtml(c.message_template)}" placeholder="z.B. Passwort: {pw}" ${lockAttr} />
-        </label>
-        <label>
-          <span>Status</span>
-          <select data-cstate="${c.id}" ${lockAttr}>
-            ${caseStateOptions(c.state || "")}
-          </select>
-        </label>
-      </div>
-      <div class="row between center" style="margin-top:10px;">
-        <span class="small">Template: {match}, {g1}, {name} | Status fuer UP/DOWN/Recovery Logik</span>
-        <button class="btn danger" data-crem="${c.id}" ${lockAttr}>Remove</button>
-      </div>
-    `;
+	    div.innerHTML = `
+	      <div class="small">Case ${idx + 1}</div>
+	      <div class="grid3" style="margin-top:8px;">
+	        <label>
+	          <span>pattern (Regex)</span>
+	          <input data-cpat="${c.id}" value="${escapeHtml(c.pattern)}" placeholder="${escapeHtml(t("case_pattern_placeholder"))}" ${lockAttr} />
+	        </label>
+	        <label>
+	          <span>message template</span>
+	          <input data-cmsg="${c.id}" value="${escapeHtml(c.message_template)}" placeholder="${escapeHtml(t("case_message_placeholder"))}" ${lockAttr} />
+	        </label>
+	        <label>
+	          <span>Status</span>
+	          <select data-cstate="${c.id}" ${lockAttr}>
+	            ${caseStateOptions(c.state || "")}
+	          </select>
+	        </label>
+	      </div>
+	      <div class="row between center" style="margin-top:10px;">
+	        <span class="small">${escapeHtml(t("case_help"))}</span>
+	        <button class="btn danger" data-crem="${c.id}" ${lockAttr}>${escapeHtml(t("remove"))}</button>
+	      </div>
+	    `;
     wrap.appendChild(div);
 
     div.querySelector(`[data-cpat="${c.id}"]`).addEventListener("input", (e) => {
@@ -1105,7 +1539,7 @@ function renderCasesForRunner(rid) {
       syncRunnerDirtyButton(rid);
     });
     div.querySelector(`[data-crem="${c.id}"]`).addEventListener("click", async () => {
-      if (!confirm(`Case ${idx + 1} wirklich löschen?`)) {
+      if (!confirm(t("confirm_delete_case", { idx: idx + 1 }))) {
         return;
       }
       r.cases = r.cases.filter((x) => x.id !== c.id);
@@ -1159,7 +1593,7 @@ function renderRunners() {
     const showRunInfo = !!runInfoText;
     const runnerStateParts = [];
     if (paused) {
-      runnerStateParts.push(`Auto-Pause nach ${consecutiveFailures} Fehlern`);
+      runnerStateParts.push(t("runner_auto_pause_state", { n: consecutiveFailures }));
     }
     if (rt.last_case) {
       runnerStateParts.push(`${formatTime(rt.last_case_ts)}: ${rt.last_case}`);
@@ -1169,15 +1603,19 @@ function renderRunners() {
     const saveBlocked = isRunnerSaveBlocked(r);
     const isSaveableDirty = isDirty && !saveBlocked;
     const canClone = !isLocked && !cloneBlockedByUnsaved && !r._isNew && !isDirty && !saveBlocked;
-    const cloneDisabledAttr = canClone ? "" : (isLocked ? "disabled title=\"Während Run aktiv gesperrt.\"" : "disabled title=\"Nur im gespeicherten Zustand clonbar. Erst speichern.\"");
+    const cloneDisabledAttr = canClone
+      ? ""
+      : (isLocked
+        ? `disabled title="${escapeHtml(t("lock_active_title"))}"`
+        : `disabled title="${escapeHtml(t("clone_needs_saved_title"))}"`);
     const runDisabled = !isActive && (isRunnerCommandMissing(r) || isDirty || saveBlocked);
     const runDisabledAttr = (!isActive && isRunnerCommandMissing(r))
-      ? "disabled title=\"Command fehlt: Bitte zuerst Command eintragen.\""
+      ? `disabled title="${escapeHtml(t("cmd_missing_reason"))}"`
       : (!isActive && (isDirty || saveBlocked))
-        ? "disabled title=\"Bitte zuerst speichern (Bearbeitungsmodus).\""
+        ? `disabled title="${escapeHtml(t("save_first_reason"))}"`
         : "";
     const lockAttr = isLocked ? "disabled" : "";
-    const removeDisabledAttr = isLocked ? "disabled title=\"Während Run aktiv gesperrt.\"": "";
+    const removeDisabledAttr = isLocked ? `disabled title="${escapeHtml(t("lock_active_title"))}"` : "";
 
 	    const div = document.createElement("div");
 	    div.className = `runner${isSaveableDirty ? " is-dirty" : ""}`;
@@ -1187,7 +1625,7 @@ function renderRunners() {
 	          <div class="runnerIdentity">
 	          <div class="runnerTitleRow">
 	            <span class="toggle" data-toggle="${r.id}">${r._collapsed ? "+" : "-"}</span>
-	            <input data-name="${r.id}" value="${escapeHtml(r.name)}" placeholder="Runner Name" ${lockAttr} />
+		            <input data-name="${r.id}" value="${escapeHtml(r.name)}" placeholder="${escapeHtml(t("runner_placeholder"))}" ${lockAttr} />
 	            <span class="pill runnerElapsed ${showElapsed ? "" : "hidden"}" data-runner-elapsed="${r.id}">${showElapsed ? `⏱ ${escapeHtml(elapsedText)}` : ""}</span>
 	            <span class="pill runnerRunInfo ${showRunInfo ? "" : "hidden"}">${showRunInfo ? escapeHtml(runInfoText) : ""}</span>
 	          </div>
@@ -1196,18 +1634,18 @@ function renderRunners() {
 	          </div>
 	        </div>
 	        <div class="runnerActions row gap wrapline center">
-	          <div class="row gap center reorderControls ${ui.runnerSortMode ? "" : "hidden"}">
-	            <button class="btn" data-move-runner-up="${r.id}" ${(idx === 0 || isLocked) ? "disabled" : ""} title="${isLocked ? "Während Run aktiv gesperrt." : "Nach oben"}">↑</button>
-	            <button class="btn" data-move-runner-down="${r.id}" ${(idx === state.runners.length - 1 || isLocked) ? "disabled" : ""} title="${isLocked ? "Während Run aktiv gesperrt." : "Nach unten"}">↓</button>
-	          </div>
-	          <button class="btn ${isActive ? "danger" : "primary"}" data-runstop="${r.id}" ${runDisabledAttr}>
-	            ${isActive ? "■ Stop" : "▶ Run"}
-	          </button>
-	          <button class="btn primary runnerSaveBtn ${isDirty ? "dirty" : ""} ${saveBlocked ? "invalid" : ""}" data-save-name="${r.id}" ${isDirty ? "" : "disabled title=\"Keine Änderungen\""}>💾 Speichern</button>
-	          <button class="btn" data-clone-runner="${r.id}" ${cloneDisabledAttr}>Clone</button>
-	          <button class="btn danger" data-delrunner="${r.id}" ${removeDisabledAttr}>Remove</button>
-	        </div>
-	      </div>
+		          <div class="row gap center reorderControls ${ui.runnerSortMode ? "" : "hidden"}">
+		            <button class="btn" data-move-runner-up="${r.id}" ${(idx === 0 || isLocked) ? "disabled" : ""} title="${escapeHtml(isLocked ? t("lock_active_title") : t("move_up"))}">↑</button>
+		            <button class="btn" data-move-runner-down="${r.id}" ${(idx === state.runners.length - 1 || isLocked) ? "disabled" : ""} title="${escapeHtml(isLocked ? t("lock_active_title") : t("move_down"))}">↓</button>
+		          </div>
+		          <button class="btn ${isActive ? "danger" : "primary"}" data-runstop="${r.id}" ${runDisabledAttr}>
+		            ${isActive ? "■ Stop" : "▶ Run"}
+		          </button>
+		          <button class="btn primary runnerSaveBtn ${isDirty ? "dirty" : ""} ${saveBlocked ? "invalid" : ""}" data-save-name="${r.id}" ${isDirty ? "" : `disabled title="${escapeHtml(t("no_changes"))}"`}>${escapeHtml(t("save"))}</button>
+		          <button class="btn" data-clone-runner="${r.id}" ${cloneDisabledAttr}>Clone</button>
+		          <button class="btn danger" data-delrunner="${r.id}" ${removeDisabledAttr}>${escapeHtml(t("remove"))}</button>
+		        </div>
+		      </div>
 
       <div class="runnerBody ${r._collapsed ? "hidden" : ""}" data-body="${r.id}">
         <div class="runnerConfigGrid">
@@ -1215,70 +1653,70 @@ function renderRunners() {
 	            <span>Command (bash -lc)</span>
 	            <textarea rows="7" data-command="${r.id}" ${lockAttr}>${escapeHtml(r.command)}</textarea>
 	          </label>
-          <div class="runnerSettingsPanel">
-            <div class="runnerSettingsSection">
-              <span class="small runnerSectionTitle">Benachrichtigungen</span>
-              <div data-notify-checks="${r.id}" class="runnerNotifyChecks">
-                ${state.notify_profiles.length === 0
-                  ? '<span class="small" style="opacity:0.6;">Keine Dienste verfügbar</span>'
-                  : state.notify_profiles.map((np) => {
-                    const assigned = (r.notify_profile_ids || []).includes(np.id);
-                    const onlyUpdates = assigned && (r.notify_profile_updates_only || []).includes(np.id);
-                    return `
-                      <div class="runnerNotifyRow">
-                        <span class="runnerNotifyName">${escapeHtml(np.name)}</span>
-                        <div class="row gap center runnerNotifyActions">
-	                          <button
-	                            class="btn ${assigned ? "primary" : ""}"
-	                            data-notify-toggle="${r.id}"
-	                            data-notify-profile="${np.id}"
-	                            title="${assigned ? "Benachrichtigung EIN" : "Benachrichtigung AUS"}"
-	                          >
-	                            ${assigned ? "Ein" : "Aus"}
-	                          </button>
-	                          <button
-	                            class="btn ${onlyUpdates ? "primary" : ""}"
-	                            data-notify-updates="${r.id}"
-	                            data-notify-profile="${np.id}"
-	                            ${assigned ? "" : "disabled title=\"Erst Ein schalten\""}
-	                            title="${onlyUpdates ? "Nur Statuswechsel senden" : "Jeden Match senden"}"
-	                          >
-	                            Updates only
-	                          </button>
-                        </div>
-                      </div>
-                    `;
-                  }).join("")}
-              </div>
-            </div>
+	          <div class="runnerSettingsPanel">
+	            <div class="runnerSettingsSection">
+	              <span class="small runnerSectionTitle">${escapeHtml(t("notifications"))}</span>
+	              <div data-notify-checks="${r.id}" class="runnerNotifyChecks">
+	                ${state.notify_profiles.length === 0
+	                  ? `<span class="small" style="opacity:0.6;">${escapeHtml(t("no_services_available"))}</span>`
+	                  : state.notify_profiles.map((np) => {
+	                    const assigned = (r.notify_profile_ids || []).includes(np.id);
+	                    const onlyUpdates = assigned && (r.notify_profile_updates_only || []).includes(np.id);
+	                    return `
+	                      <div class="runnerNotifyRow">
+	                        <span class="runnerNotifyName">${escapeHtml(np.name)}</span>
+	                        <div class="row gap center runnerNotifyActions">
+		                          <button
+		                            class="btn ${assigned ? "primary" : ""}"
+		                            data-notify-toggle="${r.id}"
+		                            data-notify-profile="${np.id}"
+		                            title="${escapeHtml(assigned ? t("notify_on_title") : t("notify_off_title"))}"
+		                          >
+		                            ${escapeHtml(assigned ? t("on") : t("off_short"))}
+		                          </button>
+		                          <button
+		                            class="btn ${onlyUpdates ? "primary" : ""}"
+		                            data-notify-updates="${r.id}"
+		                            data-notify-profile="${np.id}"
+		                            ${assigned ? "" : `disabled title="${escapeHtml(t("enable_first"))}"`}
+		                            title="${escapeHtml(onlyUpdates ? t("updates_only_title_on") : t("updates_only_title_off"))}"
+		                          >
+		                            ${escapeHtml(t("updates_only"))}
+		                          </button>
+	                        </div>
+	                      </div>
+	                    `;
+	                  }).join("")}
+	              </div>
+	            </div>
 
 	            <div class="runnerSettingsSection runnerLogButtons">
-	              <button class="btn ${r.logging_enabled ? "primary" : ""}" data-logging="${r.id}" title="${isLocked ? "Während Run aktiv gesperrt." : "Wenn aus: kein Schreiben in data/run_<runner_id>.log"}" ${lockAttr}>📄 Logging ${r.logging_enabled ? "EIN" : "AUS"}</button>
-	              <button class="btn" data-openlog="${r.id}">📄 Log öffnen</button>
-	              <button class="btn danger" data-clearlog="${r.id}" ${lockAttr} title="${isLocked ? "Während Run aktiv gesperrt." : "Log-Datei leeren"}">🗑️ Log leeren</button>
+	              <button class="btn ${r.logging_enabled ? "primary" : ""}" data-logging="${r.id}" title="${escapeHtml(isLocked ? t("lock_active_title") : t("logging_title"))}" ${lockAttr}>📄 Logging ${escapeHtml(r.logging_enabled ? t("logging_on") : t("logging_off"))}</button>
+	              <button class="btn" data-openlog="${r.id}">${escapeHtml(t("open_log"))}</button>
+	              <button class="btn danger" data-clearlog="${r.id}" ${lockAttr} title="${escapeHtml(isLocked ? t("lock_active_title") : t("clear_log"))}">${escapeHtml(t("clear_log"))}</button>
 	            </div>
 
 	            <div class="runnerSettingsSection">
-	              <span class="small runnerSectionTitle">Scheduler (nach Run-Ende)</span>
+	              <span class="small runnerSectionTitle">${escapeHtml(t("scheduler"))}</span>
 	              <div class="grid3 runnerScheduleGrid">
-	                <label><span>Stunden</span><select data-h="${r.id}" ${lockAttr}>${scheduleOptions(23)}</select></label>
-	                <label><span>Minuten</span><select data-m="${r.id}" ${lockAttr}>${scheduleOptions(59)}</select></label>
-	                <label><span>Sekunden</span><select data-s="${r.id}" ${lockAttr}>${scheduleOptions(59)}</select></label>
+	                <label><span>${escapeHtml(t("hours"))}</span><select data-h="${r.id}" ${lockAttr}>${scheduleOptions(23)}</select></label>
+	                <label><span>${escapeHtml(t("minutes"))}</span><select data-m="${r.id}" ${lockAttr}>${scheduleOptions(59)}</select></label>
+	                <label><span>${escapeHtml(t("seconds"))}</span><select data-s="${r.id}" ${lockAttr}>${scheduleOptions(59)}</select></label>
 	              </div>
 	              <div class="runnerRunsWrap">
-	                <label><span>Anzahl Runs</span><select data-runs="${r.id}" ${lockAttr}>${runsOptions()}</select></label>
+	                <label><span>${escapeHtml(t("total_runs"))}</span><select data-runs="${r.id}" ${lockAttr}>${runsOptions()}</select></label>
 	              </div>
 	              <div class="grid3 runnerScheduleGrid" style="margin-top:10px;">
 	                <label>
-	                  <span>Alert-Cooldown</span>
+	                  <span>${escapeHtml(t("alert_cooldown"))}</span>
 	                  <select data-cooldown="${r.id}" ${lockAttr}>${cooldownOptions()}</select>
 	                </label>
 	                <label>
-	                  <span>Eskalation</span>
+	                  <span>${escapeHtml(t("escalation"))}</span>
 	                  <select data-escalate="${r.id}" ${lockAttr}>${escalationOptions()}</select>
 	                </label>
 	                <label>
-	                  <span>Auto-Pause</span>
+	                  <span>${escapeHtml(t("auto_pause"))}</span>
 	                  <select data-failpause="${r.id}" ${lockAttr}>${failurePauseOptions()}</select>
 	                </label>
 	              </div>
@@ -1286,24 +1724,21 @@ function renderRunners() {
           </div>
         </div>
 
-        <div class="runnerSection">
-          <div class="runnerSectionHead">
-            <h3>Cases</h3>
-          </div>
-          <p class="hint">
-            Regex pro Output-Zeile. Jeder Match → Pushover (nur wenn Token+UserKey gesetzt).
-            Leerer Case (pattern+message leer) → am Ende letzte Output-Zeile senden.
-          </p>
-	          <div data-cases="${r.id}"></div>
-	          <div class="row" style="margin-top:10px; justify-content:flex-end;">
-	            <button class="btn" data-addcase="${r.id}" ${lockAttr} title="${isLocked ? "Während Run aktiv gesperrt." : "Neuen Case hinzufügen"}">+ Case</button>
+	        <div class="runnerSection">
+	          <div class="runnerSectionHead">
+	            <h3>${escapeHtml(t("cases"))}</h3>
 	          </div>
-	        </div>
+	          <p class="hint">${escapeHtml(t("cases_hint"))}</p>
+		          <div data-cases="${r.id}"></div>
+		          <div class="row" style="margin-top:10px; justify-content:flex-end;">
+		            <button class="btn" data-addcase="${r.id}" ${lockAttr} title="${escapeHtml(isLocked ? t("lock_active_title") : t("add_case_title"))}">${escapeHtml(t("add_case"))}</button>
+		          </div>
+		        </div>
 
         <div class="runnerSection">
           <div class="runnerSectionHead">
-            <h3>Output</h3>
-            <button class="btn" data-copy-output="${r.id}" title="In Zwischenablage kopieren">📋 Copy</button>
+            <h3>${escapeHtml(t("output"))}</h3>
+            <button class="btn" data-copy-output="${r.id}" title="${escapeHtml(t("copy_title"))}">${escapeHtml(t("copy"))}</button>
           </div>
           <pre class="output runnerOutput" data-output="${r.id}"></pre>
         </div>
@@ -1328,7 +1763,9 @@ function renderRunners() {
     ensureSelectValue(
       div.querySelector(`[data-failpause="${r.id}"]`),
       Number(r.failure_pause_threshold ?? 5),
-      Number(r.failure_pause_threshold ?? 5) === 0 ? "aus" : `${Number(r.failure_pause_threshold ?? 5)} Fehler`,
+      Number(r.failure_pause_threshold ?? 5) === 0
+        ? t("off")
+        : t("failures", { n: Number(r.failure_pause_threshold ?? 5) }),
     );
 
     renderCasesForRunner(r.id);
@@ -1422,15 +1859,15 @@ function renderRunners() {
   wrap.querySelectorAll(`[data-clearlog]`).forEach((btn) => {
     btn.addEventListener("click", async () => {
       const rid = btn.getAttribute("data-clearlog");
-      if (!confirm("Log-Datei wirklich leeren?")) return;
+      if (!confirm(t("confirm_clear_log"))) return;
 
       try {
         await apiFetch(`/api/log/${encodeURIComponent(rid)}`, { method: "DELETE" });
-        logHulk("success", `LOG FUER ${rid} GELEERT.`);
-        hulkFlash("success", `LOG GELEERT FUER ${rid}.`, 3200);
+        logHulk("success", t("log_cleared_log", { rid }));
+        hulkFlash("success", t("log_cleared_flash", { rid }), 3200);
       } catch (e) {
-        logHulk("error", `LOG LEEREN FEHLGESCHLAGEN FUER ${rid}: ${e.message}`);
-        hulkFlash("error", `LOG LEEREN FEHLGESCHLAGEN FUER ${rid}: ${e.message}`);
+        logHulk("error", t("log_clear_failed", { rid, err: e.message }));
+        hulkFlash("error", t("log_clear_failed", { rid, err: e.message }));
       }
     });
   });
@@ -1560,7 +1997,7 @@ function renderRunners() {
       const r = state.runners.find((x) => x.id === rid);
       const name = r ? r.name : "Runner";
 
-      if (!confirm(`Runner "${name}" wirklich löschen?`)) {
+      if (!confirm(t("confirm_delete_runner", { name }))) {
         return;
       }
 
@@ -1570,8 +2007,8 @@ function renderRunners() {
       renderRunners();
       const saved = await autoSave();
       if (saved) {
-        hulkFlash("success", `RUNNER "${name}" ENTFERNT.`, 3200);
-        logHulk("success", `RUNNER "${name}" ENTFERNT.`);
+        hulkFlash("success", t("runner_removed", { name }), 3200);
+        logHulk("success", t("runner_removed", { name }));
       }
     });
   });
@@ -1583,43 +2020,43 @@ function renderRunners() {
       const isActive = rt.running || rt.scheduled;
 
       try {
-        if (isActive) {
-          // Stop action
-          await apiPost("/api/stop", { runner_id: rid });
-          hulkFlash("info", `STOPP-SIGNAL AN ${rid} GESENDET.`, 3000);
-          logHulk("info", `STOPP-SIGNAL AN ${rid} GESENDET.`);
-        } else {
+	        if (isActive) {
+	          // Stop action
+	          await apiPost("/api/stop", { runner_id: rid });
+	          hulkFlash("info", t("stop_signal_sent", { rid }), 3000);
+	          logHulk("info", t("stop_signal_sent", { rid }));
+	        } else {
           // Run action
           if (!validateStateBeforePersist()) return;
-          const r = state.runners.find((x) => x.id === rid);
-          if (ui.dirtyRunners.has(rid) || isRunnerSaveBlocked(r)) {
-            hulkFlash("info", `RUN BLOCKIERT: ${rid} IST IM BEARBEITUNGSMODUS. BITTE ZUERST SPEICHERN.`, 4200);
-            logHulk("info", `RUN BLOCKIERT: ${rid} IST IM BEARBEITUNGSMODUS. BITTE ZUERST SPEICHERN.`);
-            syncRunnerRunButton(rid);
-            syncRunnerDirtyButton(rid);
-            return;
-          }
-          if (isRunnerCommandMissing(r)) {
-            hulkFlash("error", `RUN NICHT MOEGLICH: BEI ${rid} FEHLT DER COMMAND.`);
-            logHulk("error", `RUN BLOCKIERT: COMMAND FEHLT BEI ${rid}.`);
-            syncRunnerRunButton(rid);
-            syncRunnerDirtyButton(rid);
-            return;
-          }
+	          const r = state.runners.find((x) => x.id === rid);
+	          if (ui.dirtyRunners.has(rid) || isRunnerSaveBlocked(r)) {
+	            hulkFlash("info", t("run_blocked_edit", { rid }), 4200);
+	            logHulk("info", t("run_blocked_edit", { rid }));
+	            syncRunnerRunButton(rid);
+	            syncRunnerDirtyButton(rid);
+	            return;
+	          }
+	          if (isRunnerCommandMissing(r)) {
+	            hulkFlash("error", t("run_not_possible_missing_cmd", { rid }));
+	            logHulk("error", t("run_not_possible_missing_cmd", { rid }));
+	            syncRunnerRunButton(rid);
+	            syncRunnerDirtyButton(rid);
+	            return;
+	          }
           runtime.outputs[rid] = "";
           const out = runnerOutputEl(rid);
-          if (out) out.textContent = "";
-          await apiPost("/api/run", { state: collectState(), runner_id: rid });
-          hulkFlash("success", `${rid} STARTET JETZT.`, 3200);
-          logHulk("success", `${rid} STARTET JETZT.`);
-        }
-      } catch (e) {
-        const msg = e?.message || String(e);
-        hulkFlash("error", `RUN/STOP FEHLGESCHLAGEN FUER ${rid}: ${msg}`);
-        logHulk("error", `RUN/STOP FEHLGESCHLAGEN FUER ${rid}: ${msg}`);
-      }
-    });
-  });
+	          if (out) out.textContent = "";
+	          await apiPost("/api/run", { state: collectState(), runner_id: rid });
+	          hulkFlash("success", t("runner_starting", { rid }), 3200);
+	          logHulk("success", t("runner_starting", { rid }));
+	        }
+	      } catch (e) {
+	        const msg = e?.message || String(e);
+	        hulkFlash("error", t("runstop_failed", { rid, err: msg }));
+	        logHulk("error", t("runstop_failed", { rid, err: msg }));
+	      }
+	    });
+	  });
 
   wrap.querySelectorAll(`[data-copy-output]`).forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -1628,23 +2065,23 @@ function renderRunners() {
       if (!out) return;
 
       const text = out.textContent || "";
-      try {
-        const copied = await copyText(text);
-        if (!copied) {
-          throw new Error("Browser blockiert Zwischenablage.");
-        }
-        const originalText = btn.textContent;
-        btn.textContent = "✓ Copied";
-        hulkFlash("success", `OUTPUT VON ${rid} IN ZWISCHENABLAGE KOPIERT.`, 2600);
-        setTimeout(() => {
-          btn.textContent = originalText;
-        }, 2000);
-      } catch (e) {
-        logHulk("error", `COPY FEHLGESCHLAGEN: ${e.message}`);
-        hulkFlash("error", `COPY FEHLGESCHLAGEN: ${e.message}`);
-      }
-    });
-  });
+	      try {
+	        const copied = await copyText(text);
+	        if (!copied) {
+	          throw new Error(t("clipboard_blocked"));
+	        }
+	        const originalText = btn.textContent;
+	        btn.textContent = t("copied");
+	        hulkFlash("success", t("output_copied", { rid }), 2600);
+	        setTimeout(() => {
+	          btn.textContent = originalText;
+	        }, 2000);
+	      } catch (e) {
+	        logHulk("error", t("copy_failed", { err: e.message }));
+	        hulkFlash("error", t("copy_failed", { err: e.message }));
+	      }
+	    });
+	  });
 
   wrap.querySelectorAll(`[data-clone-runner]`).forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -1652,29 +2089,29 @@ function renderRunners() {
       const r = state.runners.find((x) => x.id === rid);
       if (!r) return;
 
-      if (hasUnsavedLocalChanges() || !!r._isNew || ui.dirtyRunners.has(rid) || isRunnerSaveBlocked(r)) {
-        const msg = "CLONE BLOCKIERT: BITTE ZUERST ALLE AENDERUNGEN SPEICHERN.";
-        hulkFlash("info", msg, 4200);
-        logHulk("info", msg);
-        renderRunners();
+	      if (hasUnsavedLocalChanges() || !!r._isNew || ui.dirtyRunners.has(rid) || isRunnerSaveBlocked(r)) {
+	        const msg = t("clone_blocked");
+	        hulkFlash("info", msg, 4200);
+	        logHulk("info", msg);
+	        renderRunners();
         renderNotifyProfiles();
         return;
       }
 
       try {
         const res = await apiPost("/api/clone_runner", { runner_id: rid });
-        const st = await apiGet("/api/state");
-        setFromState(st);
-        const sourceName = r.name || rid;
-        const targetName = res?.cloned_name ? ` -> "${res.cloned_name}"` : "";
-        hulkFlash("success", `RUNNER "${sourceName}" GEKLONT${targetName}.`, 3600);
-        logHulk("success", `RUNNER "${sourceName}" GEKLONT${targetName}.`);
-      } catch (e) {
-        hulkFlash("error", `CLONE FEHLGESCHLAGEN: ${e.message}`);
-        logHulk("error", `RUNNER-CLONE FEHLGESCHLAGEN: ${e.message}`);
-      }
-    });
-  });
+	        const st = await apiGet("/api/state");
+	        setFromState(st);
+	        const sourceName = r.name || rid;
+	        const targetName = res?.cloned_name ? ` -> "${res.cloned_name}"` : "";
+	        hulkFlash("success", t("runner_cloned", { source: sourceName, target: targetName }), 3600);
+	        logHulk("success", t("runner_cloned", { source: sourceName, target: targetName }));
+	      } catch (e) {
+	        hulkFlash("error", t("clone_failed", { err: e.message }));
+	        logHulk("error", t("clone_failed", { err: e.message }));
+	      }
+	    });
+	  });
 
 }
 
@@ -1723,7 +2160,7 @@ async function loadNotifyJournal() {
   } catch (e) {
     ui.notifyJournalEntries = [];
     renderNotifyJournal();
-    logHulk("error", `JOURNAL-LADEN FEHLGESCHLAGEN: ${e.message}`);
+    logHulk("error", t("journal_load_failed", { err: e.message }));
   }
 }
 
@@ -1738,8 +2175,8 @@ function updateGlobalRunningStatus() {
   if (hasActivity) {
     spinner?.classList.remove("hidden");
     const parts = [];
-    if (runningCount > 0) parts.push(`${runningCount} running`);
-    if (scheduledCount > 0) parts.push(`${scheduledCount} scheduled`);
+    if (runningCount > 0) parts.push(`${runningCount} ${t("running_label")}`);
+    if (scheduledCount > 0) parts.push(`${scheduledCount} ${t("scheduled_label")}`);
     if (count) count.textContent = parts.join(", ");
   } else {
     spinner?.classList.add("hidden");
@@ -1826,13 +2263,13 @@ function startEvents() {
           if (ev.remaining !== undefined) {
             runtime.status[rid].remaining = ev.remaining;
           }
-          logHulk("info", `${rid}: RUN GESTARTET.`, ev.ts);
+          logHulk("info", t("run_started", { rid }), ev.ts);
           renderRunners();
           updateGlobalRunningStatus();
         } else if (ev.status === "stopping") {
-          logHulk("info", `${rid}: STOPPE RUN...`, ev.ts);
+          logHulk("info", t("run_stopping", { rid }), ev.ts);
         } else if (ev.status === "stopped") {
-          logHulk("info", `${rid}: RUN GESTOPPT.`, ev.ts);
+          logHulk("info", t("run_stopped", { rid }), ev.ts);
           delayedStatusUpdate(rid, () => {
             runtime.status[rid].running = false;
             runtime.status[rid].scheduled = false;
@@ -1844,7 +2281,7 @@ function startEvents() {
           });
         } else if (ev.status === "scheduled") {
           runtime.status[rid].scheduled = true;
-          logHulk("info", `${rid}: NAECHSTER RUN IN ${ev.in_s} SEKUNDEN GEPLANT.`, ev.ts);
+          logHulk("info", t("run_scheduled", { rid, sec: ev.in_s }), ev.ts);
           renderRunners();
           tickRunnerElapsed();
           updateGlobalRunningStatus();
@@ -1855,7 +2292,7 @@ function startEvents() {
           delete runtime.status[rid].started_ts;
           delete runtime.status[rid].active_ts;
           runtime.status[rid].consecutive_failures = Number(ev.consecutive_failures || runtime.status[rid].consecutive_failures || 0);
-          const msg = `${rid}: AUTO-PAUSE NACH ${runtime.status[rid].consecutive_failures} FEHLERN. MANUELLER RUN NEEDED.`;
+          const msg = t("auto_pause_msg", { rid, n: runtime.status[rid].consecutive_failures });
           logHulk("error", msg, ev.ts);
           hulkFlash("error", msg, 5200);
           renderRunners();
@@ -1863,9 +2300,9 @@ function startEvents() {
           updateGlobalRunningStatus();
         } else if (ev.status === "finished") {
           const kind = ev.stopped ? "info" : (Number(ev.exit_code) === 0 ? "success" : "error");
-          logHulk(kind, `${rid}: RUN BEENDET (EXIT=${ev.exit_code}, STOPPED=${ev.stopped}).`, ev.ts);
+          logHulk(kind, t("run_finished", { rid, code: ev.exit_code, stopped: ev.stopped }), ev.ts);
           if (!ev.stopped && Number(ev.exit_code) !== 0) {
-            hulkFlash("error", `${rid} BEENDET MIT FEHLER (EXIT=${ev.exit_code}).`);
+            hulkFlash("error", t("run_finished_error", { rid, code: ev.exit_code }));
           }
           delayedStatusUpdate(rid, () => {
             runtime.status[rid].running = false;
@@ -1915,11 +2352,11 @@ function startEvents() {
       if (ev.type === "notify_profile_auto_disabled") {
         const npid = ev.profile_id;
         const np = state.notify_profiles.find((x) => x.id === npid);
-        const label = ev.profile_name || np?.name || npid || "Service";
+        const label = ev.profile_name || np?.name || npid || t("service_fallback");
         const failCount = Math.max(3, Number(ev.failure_count || 3));
         const reason = (ev.reason || "").trim();
-        const baseMsg = `${label} wurde nach ${failCount} Fehlern deaktiviert.`;
-        const msg = reason ? `${baseMsg} Grund: ${reason}` : baseMsg;
+        const baseMsg = t("notify_auto_disabled_base", { label, fail: failCount });
+        const msg = reason ? `${baseMsg}${t("notify_auto_disabled_reason_suffix", { reason })}` : baseMsg;
         logHulk("error", msg, ev.ts);
         hulkFlash("error", msg, 6500);
         applyNotifyRuntimeStatus({
@@ -1938,8 +2375,8 @@ function startEvents() {
     const now = Date.now();
     if (now - lastSseErrorAt < 20000) return;
     lastSseErrorAt = now;
-    hulkFlash("error", "Event-Stream instabil. Verbindung wird neu aufgebaut.", 4500);
-    logHulk("error", "EVENT-STREAM VERBINDUNG INSTABIL.");
+    hulkFlash("error", t("event_stream_unstable"), 4500);
+    logHulk("error", t("event_stream_unstable_log"));
   };
 }
 
@@ -1961,11 +2398,11 @@ async function autoSave() {
     clearAllDirtyRunners();
     syncAllNotifyDirtyButtons();
     syncAllDirtyButtons();
-    logHulk("success", "AUTO-SAVE ERFOLGREICH.");
+    logHulk("success", t("autosave_ok"));
     return true;
   } catch (e) {
-    logHulk("error", `SAVE FEHLGESCHLAGEN: ${e.message}`);
-    hulkFlash("error", `SPEICHERN FEHLGESCHLAGEN: ${e.message}`);
+    logHulk("error", t("save_failed_log", { err: e.message }));
+    hulkFlash("error", t("save_failed_flash", { err: e.message }));
     return false;
   }
 }
@@ -1974,6 +2411,9 @@ async function wireUI() {
   const openInfoTitle = el("openInfoTitle");
   const closeInfoBtn = el("closeInfoBtn");
   const infoModal = el("infoModal");
+
+  el("langDeBtn")?.addEventListener("click", () => setLanguage("de"));
+  el("langEnBtn")?.addEventListener("click", () => setLanguage("en"));
 
   openInfoTitle?.addEventListener("click", () => setInfoModalOpen(true));
   openInfoTitle?.addEventListener("keydown", (e) => {
@@ -2011,7 +2451,7 @@ async function wireUI() {
     saveUIState();
     syncSortModeButtons();
     renderNotifyProfiles();
-    hulkFlash("info", `NOTIFICATION-SORTIERMODUS ${ui.notifySortMode ? "AKTIV" : "AUS"}.`, 2200);
+    hulkFlash("info", t("notify_sort_mode", { state: ui.notifySortMode ? t("sort_mode_on_upper") : t("sort_mode_off_upper") }), 2200);
   });
 
   el("sortRunnerBtn")?.addEventListener("click", () => {
@@ -2019,7 +2459,7 @@ async function wireUI() {
     saveUIState();
     syncSortModeButtons();
     renderRunners();
-    hulkFlash("info", `RUNNER-SORTIERMODUS ${ui.runnerSortMode ? "AKTIV" : "AUS"}.`, 2200);
+    hulkFlash("info", t("runner_sort_mode", { state: ui.runnerSortMode ? t("sort_mode_on_upper") : t("sort_mode_off_upper") }), 2200);
   });
 
   el("clearNotifyJournalBtn")?.addEventListener("click", async () => {
@@ -2027,18 +2467,18 @@ async function wireUI() {
       await apiFetch("/api/notifications", { method: "DELETE" });
       ui.notifyJournalEntries = [];
       renderNotifyJournal();
-      hulkFlash("success", "NOTIFICATION-JOURNAL GELEERT.", 2600);
-      logHulk("success", "NOTIFICATION-JOURNAL GELEERT.");
+      hulkFlash("success", t("journal_cleared"), 2600);
+      logHulk("success", t("journal_cleared"));
     } catch (e) {
-      hulkFlash("error", `JOURNAL LEEREN FEHLGESCHLAGEN: ${e.message}`);
-      logHulk("error", `JOURNAL LEEREN FEHLGESCHLAGEN: ${e.message}`);
+      hulkFlash("error", t("journal_clear_failed", { err: e.message }));
+      logHulk("error", t("journal_clear_failed", { err: e.message }));
     }
   });
 
   el("clearEventsBtn")?.addEventListener("click", () => {
     const out = el("events");
     if (out) out.textContent = "";
-    hulkFlash("success", "EVENTS GELEERT.", 2200);
+    hulkFlash("success", t("events_cleared"), 2200);
   });
 
   el("addNotifyBtn").addEventListener("click", () => {
@@ -2046,7 +2486,7 @@ async function wireUI() {
     saveUIState();
     state.notify_profiles.push({
       id: `notify_${uuidFallback()}`,
-      name: "Neuer Pushover-Dienst",
+      name: t("new_notify_default_name"),
       type: "pushover",
       active: true,
       failure_count: 0,
@@ -2056,7 +2496,7 @@ async function wireUI() {
       _isNew: true,
     });
     renderNotifyProfiles();
-    hulkFlash("info", "NEUER NOTIFICATION-DIENST ERSTELLT. PFLICHTFELDER AUSFUELLEN UND SPEICHERN.", 4500);
+    hulkFlash("info", t("new_notify_created"), 4500);
   });
 
   el("addRunnerBtn").addEventListener("click", async () => {
@@ -2065,7 +2505,7 @@ async function wireUI() {
     const rid = `runner_${uuidFallback()}`;
     state.runners.push({
       id: rid,
-      name: "New Runner",
+      name: t("new_runner_default_name"),
       command: "",
       logging_enabled: true,
       schedule: { hours: 0, minutes: 0, seconds: 0 },
@@ -2083,14 +2523,14 @@ async function wireUI() {
     renderRunners();
     const saved = await autoSave();
     if (saved) {
-      hulkFlash("success", "NEUER RUNNER ERSTELLT UND GESPEICHERT.", 3200);
-      logHulk("success", `RUNNER ${rid} ERSTELLT UND GESPEICHERT.`);
+      hulkFlash("success", t("new_runner_created"), 3200);
+      logHulk("success", t("new_runner_created_log", { rid }));
     }
   });
 
   el("exportBtn").addEventListener("click", async () => {
-    logHulk("info", "EXPORT WIRD GESTARTET...");
-    hulkFlash("info", "EXPORT WIRD GESTARTET...", 2800);
+    logHulk("info", t("export_starting"));
+    hulkFlash("info", t("export_starting"), 2800);
     try {
       const a = document.createElement("a");
       a.href = apiUrl("/api/export");
@@ -2098,11 +2538,11 @@ async function wireUI() {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      logHulk("success", "EXPORT GESTARTET. DOWNLOAD SOLLTE JETZT LAUFEN.");
-      hulkFlash("success", "EXPORT GESTARTET. DOWNLOAD SOLLTE JETZT LAUFEN.", 3800);
+      logHulk("success", t("export_started_log"));
+      hulkFlash("success", t("export_started_flash"), 3800);
     } catch (e) {
-      logHulk("error", `EXPORT FEHLGESCHLAGEN: ${e.message}`);
-      hulkFlash("error", `EXPORT FEHLGESCHLAGEN: ${e.message}`);
+      logHulk("error", t("export_failed", { err: e.message }));
+      hulkFlash("error", t("export_failed", { err: e.message }));
     }
   });
 
@@ -2114,8 +2554,8 @@ async function wireUI() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    logHulk("info", `IMPORT LAEUFT: ${file.name}`);
-    hulkFlash("info", `IMPORT LAEUFT: ${file.name}`, 2800);
+    logHulk("info", t("import_running", { name: file.name }));
+    hulkFlash("info", t("import_running", { name: file.name }), 2800);
     try {
       const text = await file.text();
       const res = await apiFetch("/api/import", {
@@ -2127,15 +2567,15 @@ async function wireUI() {
       if (!res.ok) {
         throw new Error(result?.error || result?.detail || "Import failed");
       }
-      logHulk("success", `IMPORT ERFOLGREICH: ${result.imported_count} RUNNER UEBERNOMMEN.`);
-      hulkFlash("success", `IMPORT ERFOLGREICH: ${result.imported_count} RUNNER UEBERNOMMEN.`, 4200);
+      logHulk("success", t("import_ok", { count: result.imported_count }));
+      hulkFlash("success", t("import_ok", { count: result.imported_count }), 4200);
 
       // Reload state from server
       const st = await apiGet("/api/state");
       setFromState(st);
     } catch (e) {
-      logHulk("error", `IMPORT FEHLGESCHLAGEN: ${e.message}`);
-      hulkFlash("error", `IMPORT FEHLGESCHLAGEN: ${e.message}`);
+      logHulk("error", t("import_failed", { err: e.message }));
+      hulkFlash("error", t("import_failed", { err: e.message }));
     } finally {
       e.target.value = "";
     }
@@ -2144,18 +2584,19 @@ async function wireUI() {
 
 (async function main() {
   try {
+    applyLanguageToStaticDom();
     const st = await apiGet("/api/state");
     setFromState(st);
     await loadNotifyJournal();
     startEvents();
     startRunnerElapsedTicker();
     await wireUI();
-    hulkFlash("success", "System bereit.", 2800);
-    logHulk("success", "SYSTEM BEREIT.");
+    hulkFlash("success", t("system_ready"), 2800);
+    logHulk("success", t("system_ready_log"));
   } catch (e) {
     const msg = e?.message || String(e);
-    hulkFlash("error", `START FEHLGESCHLAGEN: ${msg}`);
-    logHulk("error", `START FEHLGESCHLAGEN: ${msg}`);
+    hulkFlash("error", t("start_failed", { err: msg }));
+    logHulk("error", t("start_failed", { err: msg }));
     console.error(e);
   }
 })();

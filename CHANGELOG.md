@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 
 - Pending
 
+## [2.1.9] - 2026-02-10
+
+### Added
+
+- UI language switch (DE/EN) in the top header.
+- English UI translations (including the Info modal).
+
 ## [2.1.8] - 2026-02-10
 
 ### Changed
