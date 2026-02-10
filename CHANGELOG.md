@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 - Pending
 
+## [2.1.8] - 2026-02-10
+
+### Changed
+
+- Save buttons are now disabled (greyed out) when there are no unsaved changes.
+
 ## [2.1.7] - 2026-02-10
 
 ### Fixed

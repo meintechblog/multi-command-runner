@@ -387,6 +387,13 @@ function syncNotifyDirtyButton(npid) {
   if (!btn) return;
   btn.classList.toggle("invalid", isNotifySaveBlocked(np));
   btn.classList.toggle("dirty", ui.dirtyNotifyProfiles.has(npid));
+  const isDirty = ui.dirtyNotifyProfiles.has(npid);
+  btn.disabled = !isDirty;
+  if (!isDirty) {
+    btn.title = "Keine Änderungen";
+  } else {
+    btn.removeAttribute("title");
+  }
 }
 
 function syncAllNotifyDirtyButtons() {
@@ -524,6 +531,13 @@ function syncRunnerDirtyButton(rid) {
   if (btn) {
     btn.classList.toggle("invalid", isRunnerSaveBlocked(r));
     btn.classList.toggle("dirty", ui.dirtyRunners.has(rid));
+    const isDirty = ui.dirtyRunners.has(rid);
+    btn.disabled = !isDirty;
+    if (!isDirty) {
+      btn.title = "Keine Änderungen";
+    } else {
+      btn.removeAttribute("title");
+    }
   }
   syncRunnerRunButton(rid);
 }
@@ -827,10 +841,10 @@ function renderNotifyProfiles() {
     return;
   }
 
-  state.notify_profiles.forEach((np, idx) => {
-    const isDirty = ui.dirtyNotifyProfiles.has(np.id);
-    const saveBlocked = isNotifySaveBlocked(np);
-    const isSaveableDirty = isDirty && !saveBlocked;
+	  state.notify_profiles.forEach((np, idx) => {
+	    const isDirty = ui.dirtyNotifyProfiles.has(np.id);
+	    const saveBlocked = isNotifySaveBlocked(np);
+	    const isSaveableDirty = isDirty && !saveBlocked;
     const isActive = np.active !== false;
     const failCount = Math.max(0, Number(np.failure_count || 0));
     const sentCount = Math.max(0, Number(np.sent_count || 0));
@@ -855,17 +869,17 @@ function renderNotifyProfiles() {
           </div>
           <span class="small notifyStateText ${notifyStatusKind}" title="${escapeHtml(notifyStatusText)}">${escapeHtml(notifyStatusText)}</span>
         </div>
-        <div class="row gap center wrapline notifyActions">
+	        <div class="row gap center wrapline notifyActions">
           <div class="row gap center reorderControls ${ui.notifySortMode ? "" : "hidden"}">
             <button class="btn" data-move-np-up="${np.id}" ${idx === 0 ? "disabled" : ""} title="Nach oben">↑</button>
             <button class="btn" data-move-np-down="${np.id}" ${idx === state.notify_profiles.length - 1 ? "disabled" : ""} title="Nach unten">↓</button>
           </div>
-          <button class="btn ${isActive ? "primary" : "danger"}" data-toggle-npactive="${np.id}" title="${isActive ? "Service aktiv (klicken zum Deaktivieren)" : "Service inaktiv (klicken zum Aktivieren)"}">${isActive ? "Aktiv" : "Inaktiv"}</button>
-          <button class="btn" data-test-notify="${np.id}" ${isActive ? "" : "disabled title=\"Service ist inaktiv\""}>Test</button>
-          <button class="btn primary notifySaveBtn ${isDirty ? "dirty" : ""} ${saveBlocked ? "invalid" : ""}" data-save-npname="${np.id}">💾 Speichern</button>
-          <button class="btn danger" data-del-notify="${np.id}">Remove</button>
-        </div>
-      </div>
+	          <button class="btn ${isActive ? "primary" : "danger"}" data-toggle-npactive="${np.id}" title="${isActive ? "Service aktiv (klicken zum Deaktivieren)" : "Service inaktiv (klicken zum Aktivieren)"}">${isActive ? "Aktiv" : "Inaktiv"}</button>
+	          <button class="btn" data-test-notify="${np.id}" ${isActive ? "" : "disabled title=\"Service ist inaktiv\""}>Test</button>
+	          <button class="btn primary notifySaveBtn ${isDirty ? "dirty" : ""} ${saveBlocked ? "invalid" : ""}" data-save-npname="${np.id}" ${isDirty ? "" : "disabled title=\"Keine Änderungen\""}>💾 Speichern</button>
+	          <button class="btn danger" data-del-notify="${np.id}">Remove</button>
+	        </div>
+	      </div>
       <div class="notifyBody ${np._collapsed ? "hidden" : ""}" data-nbody="${np.id}">
         <div class="grid2">
           <label>
@@ -1165,10 +1179,10 @@ function renderRunners() {
     const lockAttr = isLocked ? "disabled" : "";
     const removeDisabledAttr = isLocked ? "disabled title=\"Während Run aktiv gesperrt.\"": "";
 
-    const div = document.createElement("div");
-    div.className = `runner${isSaveableDirty ? " is-dirty" : ""}`;
-    div.dataset.runnerId = r.id;
-    div.innerHTML = `
+	    const div = document.createElement("div");
+	    div.className = `runner${isSaveableDirty ? " is-dirty" : ""}`;
+	    div.dataset.runnerId = r.id;
+	    div.innerHTML = `
       <div class="runnerHead">
 	          <div class="runnerIdentity">
 	          <div class="runnerTitleRow">
@@ -1189,7 +1203,7 @@ function renderRunners() {
 	          <button class="btn ${isActive ? "danger" : "primary"}" data-runstop="${r.id}" ${runDisabledAttr}>
 	            ${isActive ? "■ Stop" : "▶ Run"}
 	          </button>
-	          <button class="btn primary runnerSaveBtn ${isDirty ? "dirty" : ""} ${saveBlocked ? "invalid" : ""}" data-save-name="${r.id}">💾 Speichern</button>
+	          <button class="btn primary runnerSaveBtn ${isDirty ? "dirty" : ""} ${saveBlocked ? "invalid" : ""}" data-save-name="${r.id}" ${isDirty ? "" : "disabled title=\"Keine Änderungen\""}>💾 Speichern</button>
 	          <button class="btn" data-clone-runner="${r.id}" ${cloneDisabledAttr}>Clone</button>
 	          <button class="btn danger" data-delrunner="${r.id}" ${removeDisabledAttr}>Remove</button>
 	        </div>
