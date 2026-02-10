@@ -51,6 +51,20 @@ Notes:
 - `--password` appears in shell history on the Proxmox host. Use a temporary value and change it immediately inside the container if needed.
 - For stable operations, configure regular Proxmox backups (`vzdump`) for this CT.
 
+Known-good Proxmox profile (real-world baseline):
+
+- CPU: `1 vCPU`
+- Memory: `512 MB RAM` + `512 MB swap`
+- Disk: `4 GB` rootfs
+- Networking: `eth0` via DHCP (plus optional second NIC for isolated mgmt/VLAN)
+- Container mode: unprivileged, onboot enabled
+
+When to scale up:
+
+- Move to `2 vCPU` if you run multiple busy runners in parallel.
+- Move to `1 GB RAM` if commands are heavier or logs/notifications are very active.
+- Move to `8+ GB disk` if you keep long runner logs or large notification history.
+
 ## 1) System Packages
 
 ```bash
