@@ -495,6 +495,7 @@ function renderNotifySection() {
   const title = el("notifySectionTitle");
   const toggle = el("notifySectionToggle");
   const body = el("notifySectionBody");
+  const sortBtn = el("sortNotifyBtn");
 
   if (title) {
     title.textContent = count > 0 ? `Notification services (${count})` : "Notification services";
@@ -505,6 +506,32 @@ function renderNotifySection() {
   if (body) {
     body.classList.toggle("hidden", ui.notifySectionCollapsed);
   }
+  if (count <= 1 && ui.notifySortMode) {
+    ui.notifySortMode = false;
+    saveUIState();
+  }
+  if (sortBtn) {
+    sortBtn.classList.toggle("hidden", count <= 1);
+  }
+  syncSortModeButtons();
+}
+
+function renderRunnerSection() {
+  const count = state.runners.length;
+  const title = el("runnerSectionTitle");
+  const sortBtn = el("sortRunnerBtn");
+
+  if (title) {
+    title.textContent = count > 0 ? `Runner (${count})` : "Runner";
+  }
+  if (count <= 1 && ui.runnerSortMode) {
+    ui.runnerSortMode = false;
+    saveUIState();
+  }
+  if (sortBtn) {
+    sortBtn.classList.toggle("hidden", count <= 1);
+  }
+  syncSortModeButtons();
 }
 
 function scheduleOptions(max) {
@@ -1002,6 +1029,7 @@ function renderCasesForRunner(rid) {
 function renderRunners() {
   const wrap = el("runners");
   wrap.innerHTML = "";
+  renderRunnerSection();
   refreshAllRunnerDirtyStates();
 
   state.runners.forEach((r, idx) => {
