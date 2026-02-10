@@ -13,7 +13,7 @@ apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubuserco
 Re-running the same command also works as an update path (pull latest code + restart service).
 On fresh installs, the installer asks whether HTTP Basic auth should be enabled.
 If enabled, you can set username/password directly (password minimum: 8 characters).
-On updates, existing auth values are kept and no interactive auth prompt is shown.
+On updates, existing auth state is kept (disabled stays disabled, enabled stays enabled) and no interactive auth prompt is shown.
 If auth is enabled and no password exists, a secure password is generated and shown once.
 You can disable auth bootstrap explicitly with `ENABLE_BASIC_AUTH=0` (not recommended).
 

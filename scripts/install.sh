@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SCRIPT_VERSION="1.1.4"
+SCRIPT_VERSION="1.1.5"
 
 REPO_URL="${REPO_URL:-https://github.com/meintechblog/command-runner.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
@@ -243,12 +243,23 @@ if ! grep -qE "^[[:space:]]*COMMAND_RUNNER_SECRET_KEY=" "${ENV_FILE}"; then
   printf "COMMAND_RUNNER_SECRET_KEY=%s\n" "${secret_key}" >> "${ENV_FILE}"
 fi
 
+current_auth_user="$(grep -E "^[[:space:]]*COMMAND_RUNNER_AUTH_USER=" "${ENV_FILE}" | tail -n 1 | cut -d'=' -f2- || true)"
+current_auth_pass="$(grep -E "^[[:space:]]*COMMAND_RUNNER_AUTH_PASSWORD=" "${ENV_FILE}" | tail -n 1 | cut -d'=' -f2- || true)"
+
+# On update runs, keep existing auth state unless the caller explicitly sets ENABLE_BASIC_AUTH.
+if [[ "${is_fresh_install}" != "1" && -z "${ENABLE_BASIC_AUTH_WAS_SET}" ]]; then
+  if [[ -n "${current_auth_user}" && -n "${current_auth_pass}" ]]; then
+    ENABLE_BASIC_AUTH="1"
+    log "Update detected: keeping existing Basic auth enabled."
+  else
+    ENABLE_BASIC_AUTH="0"
+    log "Update detected: keeping Basic auth disabled (no existing credentials)."
+  fi
+fi
+
 configure_auth_for_fresh_install
 
 if [[ "${ENABLE_BASIC_AUTH}" == "1" ]]; then
-  current_auth_user="$(grep -E "^[[:space:]]*COMMAND_RUNNER_AUTH_USER=" "${ENV_FILE}" | tail -n 1 | cut -d'=' -f2- || true)"
-  current_auth_pass="$(grep -E "^[[:space:]]*COMMAND_RUNNER_AUTH_PASSWORD=" "${ENV_FILE}" | tail -n 1 | cut -d'=' -f2- || true)"
-
   if [[ "${manual_auth_configured}" == "1" ]]; then
     current_auth_user="${install_auth_user}"
     current_auth_pass="${install_auth_password}"

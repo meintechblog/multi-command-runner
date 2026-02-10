@@ -46,7 +46,7 @@ What this installer does automatically:
 - creates/updates `.env` including generated `COMMAND_RUNNER_SECRET_KEY`
 - on fresh installs: asks whether HTTP Basic auth should be enabled
 - if enabled: lets you set username/password interactively (password minimum: 8 characters)
-- on updates: keeps existing auth values without interactive auth prompt
+- on updates: keeps existing auth state (disabled stays disabled, enabled stays enabled) without interactive auth prompt
 - installs/enables service and restarts `command-runner.service` (systemd)
 - runs API health check and prints access URL/log commands
 
