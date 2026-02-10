@@ -6,11 +6,17 @@ All notable changes to this project will be documented in this file.
 
 - Pending
 
+## [2.1.7] - 2026-02-10
+
+### Fixed
+
+- Runner parameter lock now applies while the runner is active (running or scheduled), matching the UI "Stop" state.
+
 ## [2.1.6] - 2026-02-10
 
 ### Changed
 
-- Runner config fields are locked while the runner is running; only runner notification assignment stays editable.
+- Runner config fields are locked while the runner is active; only runner notification assignment stays editable.
 - Runner notification toggles renamed to "Ein/Aus" and "Updates only".
 - Runner start (`Run`) is blocked while the runner has unsaved edits (Bearbeitungsmodus).
 

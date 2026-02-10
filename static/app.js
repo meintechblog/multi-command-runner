@@ -1034,8 +1034,9 @@ function renderCasesForRunner(rid) {
   const wrap = document.querySelector(`[data-cases="${rid}"]`);
   if (!r || !wrap) return;
   wrap.innerHTML = "";
-  const isRunning = !!(runtime.status[rid]?.running);
-  const lockAttr = isRunning ? "disabled" : "";
+  const rt = runtime.status[rid] || {};
+  const isActive = !!rt.running || !!rt.scheduled;
+  const lockAttr = isActive ? "disabled" : "";
 
   r.cases.forEach((c, idx) => {
     const div = document.createElement("div");
@@ -1112,11 +1113,11 @@ function renderRunners() {
   state.runners.forEach((r, idx) => {
     const rt = runtime.status[r.id] || {};
     const running = !!rt.running;
-    const isRunning = running;
     const scheduled = !!rt.scheduled;
     const paused = !!rt.paused;
     const consecutiveFailures = Math.max(0, Number(rt.consecutive_failures || 0));
     const isActive = running || scheduled;
+    const isLocked = isActive;
     const activeTs = String(rt.active_ts || rt.started_ts || "");
     const elapsedText = isActive ? formatElapsedSince(activeTs) : "";
     const showElapsed = isActive && !!elapsedText;
@@ -1153,16 +1154,16 @@ function renderRunners() {
     const isDirty = ui.dirtyRunners.has(r.id);
     const saveBlocked = isRunnerSaveBlocked(r);
     const isSaveableDirty = isDirty && !saveBlocked;
-    const canClone = !isRunning && !cloneBlockedByUnsaved && !r._isNew && !isDirty && !saveBlocked;
-    const cloneDisabledAttr = canClone ? "" : (isRunning ? "disabled title=\"Während Run gesperrt.\"" : "disabled title=\"Nur im gespeicherten Zustand clonbar. Erst speichern.\"");
+    const canClone = !isLocked && !cloneBlockedByUnsaved && !r._isNew && !isDirty && !saveBlocked;
+    const cloneDisabledAttr = canClone ? "" : (isLocked ? "disabled title=\"Während Run aktiv gesperrt.\"" : "disabled title=\"Nur im gespeicherten Zustand clonbar. Erst speichern.\"");
     const runDisabled = !isActive && (isRunnerCommandMissing(r) || isDirty || saveBlocked);
     const runDisabledAttr = (!isActive && isRunnerCommandMissing(r))
       ? "disabled title=\"Command fehlt: Bitte zuerst Command eintragen.\""
       : (!isActive && (isDirty || saveBlocked))
         ? "disabled title=\"Bitte zuerst speichern (Bearbeitungsmodus).\""
         : "";
-    const lockAttr = isRunning ? "disabled" : "";
-    const removeDisabledAttr = isRunning ? "disabled title=\"Während Run gesperrt.\"": "";
+    const lockAttr = isLocked ? "disabled" : "";
+    const removeDisabledAttr = isLocked ? "disabled title=\"Während Run aktiv gesperrt.\"": "";
 
     const div = document.createElement("div");
     div.className = `runner${isSaveableDirty ? " is-dirty" : ""}`;
@@ -1182,8 +1183,8 @@ function renderRunners() {
 	        </div>
 	        <div class="runnerActions row gap wrapline center">
 	          <div class="row gap center reorderControls ${ui.runnerSortMode ? "" : "hidden"}">
-	            <button class="btn" data-move-runner-up="${r.id}" ${(idx === 0 || isRunning) ? "disabled" : ""} title="${isRunning ? "Während Run gesperrt." : "Nach oben"}">↑</button>
-	            <button class="btn" data-move-runner-down="${r.id}" ${(idx === state.runners.length - 1 || isRunning) ? "disabled" : ""} title="${isRunning ? "Während Run gesperrt." : "Nach unten"}">↓</button>
+	            <button class="btn" data-move-runner-up="${r.id}" ${(idx === 0 || isLocked) ? "disabled" : ""} title="${isLocked ? "Während Run aktiv gesperrt." : "Nach oben"}">↑</button>
+	            <button class="btn" data-move-runner-down="${r.id}" ${(idx === state.runners.length - 1 || isLocked) ? "disabled" : ""} title="${isLocked ? "Während Run aktiv gesperrt." : "Nach unten"}">↓</button>
 	          </div>
 	          <button class="btn ${isActive ? "danger" : "primary"}" data-runstop="${r.id}" ${runDisabledAttr}>
 	            ${isActive ? "■ Stop" : "▶ Run"}
@@ -1238,9 +1239,9 @@ function renderRunners() {
             </div>
 
 	            <div class="runnerSettingsSection runnerLogButtons">
-	              <button class="btn ${r.logging_enabled ? "primary" : ""}" data-logging="${r.id}" title="${isRunning ? "Während Run gesperrt." : "Wenn aus: kein Schreiben in data/run_<runner_id>.log"}" ${lockAttr}>📄 Logging ${r.logging_enabled ? "EIN" : "AUS"}</button>
+	              <button class="btn ${r.logging_enabled ? "primary" : ""}" data-logging="${r.id}" title="${isLocked ? "Während Run aktiv gesperrt." : "Wenn aus: kein Schreiben in data/run_<runner_id>.log"}" ${lockAttr}>📄 Logging ${r.logging_enabled ? "EIN" : "AUS"}</button>
 	              <button class="btn" data-openlog="${r.id}">📄 Log öffnen</button>
-	              <button class="btn danger" data-clearlog="${r.id}" ${lockAttr} title="${isRunning ? "Während Run gesperrt." : "Log-Datei leeren"}">🗑️ Log leeren</button>
+	              <button class="btn danger" data-clearlog="${r.id}" ${lockAttr} title="${isLocked ? "Während Run aktiv gesperrt." : "Log-Datei leeren"}">🗑️ Log leeren</button>
 	            </div>
 
 	            <div class="runnerSettingsSection">
@@ -1281,7 +1282,7 @@ function renderRunners() {
           </p>
 	          <div data-cases="${r.id}"></div>
 	          <div class="row" style="margin-top:10px; justify-content:flex-end;">
-	            <button class="btn" data-addcase="${r.id}" ${lockAttr} title="${isRunning ? "Während Run gesperrt." : "Neuen Case hinzufügen"}">+ Case</button>
+	            <button class="btn" data-addcase="${r.id}" ${lockAttr} title="${isLocked ? "Während Run aktiv gesperrt." : "Neuen Case hinzufügen"}">+ Case</button>
 	          </div>
 	        </div>
 

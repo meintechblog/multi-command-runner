@@ -56,7 +56,7 @@ More installation details (including Proxmox LXC setup and sudo-safe install flo
 - Clone a saved runner (creates a stored copy directly below the source)
 - Run commands manually or on interval after each run finishes
 - Show runner active duration while active (running/scheduled) (`hh:mm:ss`, unlimited hours)
-- Lock runner config fields while running (only notification assignment remains editable)
+- Lock runner config fields while active (running/scheduled) (only notification assignment remains editable)
 - Stream live output via Server-Sent Events (SSE)
 - Detect regex-based cases and trigger notifications
 - Support semantic case states (`UP`, `DOWN`, `WARN`, `INFO`)
