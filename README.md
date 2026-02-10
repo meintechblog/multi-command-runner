@@ -1,6 +1,93 @@
 # command-runner
 
-This revision:
-- No Pushover trigger if token/user key are not both set (no error).
-- Stop works for scheduled runners too (cancels timer; stop button enabled when scheduled).
-- Per-runner log file (data/run_<runner_id>.log) and UI link to open it.
+Web UI for running and monitoring shell commands as reusable runners.
+
+## What It Does
+
+- Manage multiple runners (name, command, schedule, cases, notifications)
+- Run commands manually or on interval after each run finishes
+- Stream live output via Server-Sent Events (SSE)
+- Detect regex-based cases and trigger notifications
+- Support semantic case states (`UP`, `DOWN`, `WARN`, `INFO`)
+- Support alert controls per runner:
+  - `Alert-Cooldown`
+  - `Eskalation`
+  - `Auto-Pause` after repeated failed runs
+- Assign one or more notification services per runner
+- Optional `Only updates` mode for notification targets
+- Per-runner log files and live event feed
+- Notification journal for send history / failures
+
+## Security Warning
+
+This app executes arbitrary shell commands (`bash -lc ...`) from the web UI.
+Run it only in trusted/private environments and never expose it publicly without strong access controls.
+
+## Requirements
+
+- Python 3.11+
+- Linux environment with `bash`
+
+## Quick Start
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m app.main
+```
+
+Open:
+
+- `http://127.0.0.1:8080`
+
+## Configuration
+
+Environment variables:
+
+- `HOST` (default: `127.0.0.1`)
+- `PORT` (default: `8080`)
+- `DATA_DIR` (default: `./data`)
+
+Example:
+
+```bash
+HOST=0.0.0.0 PORT=8080 DATA_DIR=/opt/command-runner/data python -m app.main
+```
+
+## Data & Persistence
+
+- App state is stored in SQLite (`data/app.db`)
+- Runner runtime status is persisted (`data/runtime_status.json`)
+- Runner logs are written as `data/run_<runner_id>.log`
+
+## Notification Behavior
+
+- Services can be assigned per runner
+- `Only updates` suppresses repeated identical notifications for a runner/service pair
+- After 3 consecutive delivery failures, a notification service is auto-disabled
+- Service status and counters are pushed live to the UI
+
+## API (Main Endpoints)
+
+- `GET /api/state` - load current app state
+- `POST /api/state` - save app state
+- `POST /api/run` - start a runner
+- `POST /api/stop` - stop a runner
+- `GET /api/events` - SSE event stream
+- `GET /api/log/{runner_id}` - read runner log
+- `DELETE /api/log/{runner_id}` - clear runner log
+- `GET /api/notifications` - list notification journal entries
+- `DELETE /api/notifications` - clear notification journal
+
+## Development
+
+Syntax check:
+
+```bash
+python3 -m py_compile app/main.py
+```
+
+## License
+
+MIT License. See `LICENSE`.
