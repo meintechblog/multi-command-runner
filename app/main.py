@@ -1508,7 +1508,14 @@ def index(request: Request) -> HTMLResponse:
     app_js = BASE_DIR / "static" / "app.js"
     style_css = BASE_DIR / "static" / "style.css"
     asset_version = int(max(app_js.stat().st_mtime, style_css.stat().st_mtime))
-    return templates.TemplateResponse("index.html", {"request": request, "asset_version": asset_version})
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "asset_version": asset_version,
+            "app_version": app.version,
+        },
+    )
 
 
 @app.get("/api/state", response_class=JSONResponse)

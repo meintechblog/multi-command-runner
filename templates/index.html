@@ -9,7 +9,10 @@
   <body>
     <div class="wrap">
       <header class="row between center" id="topHeader">
-        <h1 id="openInfoTitle" class="titleInfoTrigger" role="button" tabindex="0" title="Öffnet die Programm-Info">command-runner</h1>
+        <div class="titleCluster">
+          <h1 id="openInfoTitle" class="titleInfoTrigger" role="button" tabindex="0" title="Öffnet die Programm-Info">command-runner</h1>
+          <span class="versionBadge" title="Aktuelle Version">v{{ app_version }}</span>
+        </div>
         <div class="headerRight">
           <div class="row gap center" id="runningStatus">
             <div class="spinner hidden" id="globalSpinner"></div>
