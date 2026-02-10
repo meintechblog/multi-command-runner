@@ -172,7 +172,7 @@ label span { display: block; font-size: 12px; opacity: 0.85; margin-bottom: 6px;
   white-space: normal;
   overflow-wrap: anywhere;
 }
-.runnerElapsed {
+.runnerElapsed, .runnerRunInfo {
   flex: 0 0 auto;
   white-space: nowrap;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;

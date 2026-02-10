@@ -1110,13 +1110,18 @@ function renderRunners() {
     let statusPrefix = "";
     if (paused) {
       statusPrefix = `⏸ (${consecutiveFailures}) `;
-    } else if (isActive && hasSchedule) {
+    }
+
+    let runInfoText = "";
+    if (!paused && isActive && hasSchedule) {
+      const rc = Math.max(0, Number(rt.run_count || 0));
       if (maxRuns === -1) {
-        statusPrefix = `∞ (${rt.run_count || 0}) `;
+        runInfoText = `${rc}/∞`;
       } else if (maxRuns > 1) {
-        statusPrefix = `⏰ (${rt.run_count || 0}/${maxRuns}) `;
+        runInfoText = `${rc}/${maxRuns}`;
       }
     }
+    const showRunInfo = !!runInfoText;
     const runnerStateParts = [];
     if (paused) {
       runnerStateParts.push(`Auto-Pause nach ${consecutiveFailures} Fehlern`);
@@ -1137,16 +1142,17 @@ function renderRunners() {
     div.dataset.runnerId = r.id;
     div.innerHTML = `
       <div class="runnerHead">
-          <div class="runnerIdentity">
-          <div class="runnerTitleRow">
-            <span class="toggle" data-toggle="${r.id}">${r._collapsed ? "+" : "-"}</span>
-            <input data-name="${r.id}" value="${escapeHtml(r.name)}" placeholder="Runner Name" />
-            <span class="pill runnerElapsed ${showElapsed ? "" : "hidden"}" data-runner-elapsed="${r.id}">${showElapsed ? `⏱ ${escapeHtml(elapsedText)}` : ""}</span>
-          </div>
-          <div class="runnerState">
-            <span class="small runnerStateText">${escapeHtml(runnerStateText)}</span>
-          </div>
-        </div>
+	          <div class="runnerIdentity">
+	          <div class="runnerTitleRow">
+	            <span class="toggle" data-toggle="${r.id}">${r._collapsed ? "+" : "-"}</span>
+	            <input data-name="${r.id}" value="${escapeHtml(r.name)}" placeholder="Runner Name" />
+	            <span class="pill runnerElapsed ${showElapsed ? "" : "hidden"}" data-runner-elapsed="${r.id}">${showElapsed ? `⏱ ${escapeHtml(elapsedText)}` : ""}</span>
+	            <span class="pill runnerRunInfo ${showRunInfo ? "" : "hidden"}">${showRunInfo ? escapeHtml(runInfoText) : ""}</span>
+	          </div>
+	          <div class="runnerState">
+	            <span class="small runnerStateText">${escapeHtml(runnerStateText)}</span>
+	          </div>
+	        </div>
         <div class="runnerActions row gap wrapline center">
           <div class="row gap center reorderControls ${ui.runnerSortMode ? "" : "hidden"}">
             <button class="btn" data-move-runner-up="${r.id}" ${idx === 0 ? "disabled" : ""} title="Nach oben">↑</button>
