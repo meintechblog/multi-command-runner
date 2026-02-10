@@ -2,12 +2,40 @@
 
 This guide targets Debian/Ubuntu-based Linux (including LXC containers).
 
+## Before You Start (Host vs Container vs User)
+
+Use the commands in the correct place:
+
+- `pveam ...` and `pct ...` commands run on the **Proxmox host node** (usually as `root`).
+- App install commands run **inside the LXC container** (after `pct enter <CTID>`).
+
+User context:
+
+- The one-liner installer must run with **root privileges inside the container**.
+- If you are already `root` in the container, use the root one-liner below.
+- If you are logged in as a normal user with `sudo`, use the sudo-safe variant below.
+
+Important:
+
+- The installer creates a system service account `command-runner` for runtime by default.
+- That account is not your interactive login account.
+- After installation, the app runs as a `systemd` service automatically.
+
 ## Automated One-Liner Install (Fresh LXC)
 
 Run this inside the new container as `root`:
 
 ```bash
 apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/install.sh | bash
+```
+
+If you are **not root** but have `sudo`, use this beginner-safe flow:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y curl
+curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/install.sh -o /tmp/command-runner-install.sh
+sudo bash /tmp/command-runner-install.sh
 ```
 
 What this installer does automatically:

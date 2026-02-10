@@ -49,9 +49,13 @@ Open:
 
 ## One-Liner Installer (Fresh Debian/LXC)
 
+Run inside the target container as `root`:
+
 ```bash
 apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/install.sh | bash
 ```
+
+If you use a non-root user with `sudo`, see `docs/INSTALL.md` for the sudo-safe variant.
 
 Installer script location:
 
