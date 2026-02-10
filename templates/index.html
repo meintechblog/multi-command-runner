@@ -27,7 +27,10 @@
             <span id="notifySectionToggle" class="toggle">-</span>
             <h2 id="notifySectionTitle" style="margin:0;">Notification services</h2>
           </div>
-          <button id="addNotifyBtn" class="btn primary">+ Dienst</button>
+          <div class="row gap center wrapline">
+            <button id="sortNotifyBtn" class="btn">Sortieren: Aus</button>
+            <button id="addNotifyBtn" class="btn primary">+ Dienst</button>
+          </div>
         </div>
         <div id="notifySectionBody">
           <div id="notifyProfiles"></div>
@@ -38,6 +41,7 @@
         <div class="row between center wrapline" style="margin-bottom:12px;">
           <h2>Runner</h2>
           <div class="row gap wrapline">
+            <button id="sortRunnerBtn" class="btn">Sortieren: Aus</button>
             <button id="exportBtn" class="btn">⬇ Export</button>
             <button id="importBtn" class="btn">⬆ Import</button>
             <button id="addRunnerBtn" class="btn primary">+ Runner</button>
@@ -75,7 +79,7 @@
           <ul>
             <li>Jeder Runner hat Name, Command, Cases, Notification-Zuordnung und Scheduler.</li>
             <li><code>▶ Run</code> startet sofort. <code>■ Stop</code> beendet laufende Prozesse und geplante Folge-Runs.</li>
-            <li>Runner und Notification-Services lassen sich per Drag & Drop sortieren.</li>
+            <li>Reihenfolge kann per Sortiermodus mit <code>↑/↓</code> geändert werden (mobil-freundlich). Drag & Drop bleibt zusätzlich verfügbar.</li>
             <li>Änderungen markieren den Speichern-Button automatisch (<code>dirty</code>).</li>
           </ul>
           <h3>2) Scheduler</h3>

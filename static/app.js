@@ -21,6 +21,8 @@ function loadUIState() {
     const parsed = JSON.parse(raw);
     return {
       notifySectionCollapsed: !!parsed.notifySectionCollapsed,
+      notifySortMode: !!parsed.notifySortMode,
+      runnerSortMode: !!parsed.runnerSortMode,
     };
   } catch (e) {
     return {};
@@ -33,6 +35,8 @@ function saveUIState() {
       UI_STORAGE_KEY,
       JSON.stringify({
         notifySectionCollapsed: !!ui.notifySectionCollapsed,
+        notifySortMode: !!ui.notifySortMode,
+        runnerSortMode: !!ui.runnerSortMode,
       }),
     );
   } catch (e) {
@@ -43,12 +47,37 @@ function saveUIState() {
 const loadedUIState = loadUIState();
 const ui = {
   notifySectionCollapsed: loadedUIState.notifySectionCollapsed ?? false,
+  notifySortMode: loadedUIState.notifySortMode ?? false,
+  runnerSortMode: loadedUIState.runnerSortMode ?? false,
   notifyJournalEntries: [],
   dirtyNotifyProfiles: new Set(),
   savedNotifySignatures: {},
   dirtyRunners: new Set(),
   savedRunnerSignatures: {},
 };
+
+function syncSortModeButtons() {
+  const notifyBtn = el("sortNotifyBtn");
+  const runnerBtn = el("sortRunnerBtn");
+  if (notifyBtn) {
+    notifyBtn.textContent = `Sortieren: ${ui.notifySortMode ? "An" : "Aus"}`;
+    notifyBtn.classList.toggle("primary", !!ui.notifySortMode);
+  }
+  if (runnerBtn) {
+    runnerBtn.textContent = `Sortieren: ${ui.runnerSortMode ? "An" : "Aus"}`;
+    runnerBtn.classList.toggle("primary", !!ui.runnerSortMode);
+  }
+}
+
+function moveItemInArray(list, fromIndex, toIndex) {
+  if (!Array.isArray(list)) return false;
+  if (fromIndex < 0 || fromIndex >= list.length) return false;
+  if (toIndex < 0 || toIndex >= list.length) return false;
+  if (fromIndex === toIndex) return false;
+  const [item] = list.splice(fromIndex, 1);
+  list.splice(toIndex, 0, item);
+  return true;
+}
 
 function uuidFallback() {
   if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
@@ -183,7 +212,7 @@ function logHulk(kind, text, tsIso = null) {
 }
 
 function maskNotifySecretsInState() {
-  state.notify_profiles.forEach((np) => {
+  state.notify_profiles.forEach((np, idx) => {
     const cfg = np?.config || {};
     const userKey = String(cfg.user_key || "");
     const apiToken = String(cfg.api_token || "");
@@ -254,7 +283,7 @@ function computeNotifyProfileSignature(np) {
 
 function syncSavedNotifySignatures() {
   const next = {};
-  state.notify_profiles.forEach((np) => {
+  state.notify_profiles.forEach((np, idx) => {
     next[np.id] = computeNotifyProfileSignature(np);
   });
   ui.savedNotifySignatures = next;
@@ -364,7 +393,7 @@ function computeRunnerSignature(r) {
 
 function syncSavedRunnerSignatures() {
   const next = {};
-  state.runners.forEach((r) => {
+  state.runners.forEach((r, idx) => {
     next[r.id] = computeRunnerSignature(r);
   });
   ui.savedRunnerSignatures = next;
@@ -620,6 +649,7 @@ function setFromState(st) {
   }));
   syncSavedRunnerSignatures();
 
+  syncSortModeButtons();
   renderNotifySection();
   renderNotifyProfiles();
   renderRunners();
@@ -636,7 +666,7 @@ function renderNotifyProfiles() {
     return;
   }
 
-  state.notify_profiles.forEach((np) => {
+  state.notify_profiles.forEach((np, idx) => {
     const isDirty = ui.dirtyNotifyProfiles.has(np.id);
     const saveBlocked = isNotifySaveBlocked(np);
     const isActive = np.active !== false;
@@ -652,6 +682,9 @@ function renderNotifyProfiles() {
     const notifyStatusKind = !isActive ? "error" : (failCount >= 2 ? "warn" : (failCount > 0 ? "info" : "ok"));
     const div = document.createElement("div");
     div.className = "notifyProfile";
+    if (ui.notifySortMode) {
+      div.classList.add("reorder-mode");
+    }
     div.draggable = true;
     div.dataset.notifyId = np.id;
     div.innerHTML = `
@@ -665,6 +698,10 @@ function renderNotifyProfiles() {
           <span class="small notifyStateText ${notifyStatusKind}" title="${escapeHtml(notifyStatusText)}">${escapeHtml(notifyStatusText)}</span>
         </div>
         <div class="row gap center">
+          <div class="row gap center reorderControls ${ui.notifySortMode ? "" : "hidden"}">
+            <button class="btn" data-move-np-up="${np.id}" ${idx === 0 ? "disabled" : ""} title="Nach oben">↑</button>
+            <button class="btn" data-move-np-down="${np.id}" ${idx === state.notify_profiles.length - 1 ? "disabled" : ""} title="Nach unten">↓</button>
+          </div>
           <button class="btn ${isActive ? "primary" : "danger"}" data-toggle-npactive="${np.id}" title="${isActive ? "Service aktiv (klicken zum Deaktivieren)" : "Service inaktiv (klicken zum Aktivieren)"}">${isActive ? "Aktiv" : "Inaktiv"}</button>
           <button class="btn" data-test-notify="${np.id}" ${isActive ? "" : "disabled title=\"Service ist inaktiv\""}>Test</button>
           <button class="btn danger" data-del-notify="${np.id}">Remove</button>
@@ -755,6 +792,26 @@ function renderNotifyProfiles() {
       np._collapsed = !np._collapsed;
       document.querySelector(`[data-nbody="${npid}"]`)?.classList.toggle("hidden", np._collapsed);
       t.textContent = np._collapsed ? "+" : "-";
+    });
+  });
+
+  wrap.querySelectorAll("[data-move-np-up]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const npid = btn.getAttribute("data-move-np-up");
+      const idx = state.notify_profiles.findIndex((x) => x.id === npid);
+      if (!moveItemInArray(state.notify_profiles, idx, idx - 1)) return;
+      renderNotifyProfiles();
+      await autoSave();
+    });
+  });
+
+  wrap.querySelectorAll("[data-move-np-down]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const npid = btn.getAttribute("data-move-np-down");
+      const idx = state.notify_profiles.findIndex((x) => x.id === npid);
+      if (!moveItemInArray(state.notify_profiles, idx, idx + 1)) return;
+      renderNotifyProfiles();
+      await autoSave();
     });
   });
 
@@ -947,7 +1004,7 @@ function renderRunners() {
   wrap.innerHTML = "";
   refreshAllRunnerDirtyStates();
 
-  state.runners.forEach((r) => {
+  state.runners.forEach((r, idx) => {
     const rt = runtime.status[r.id] || {};
     const running = !!rt.running;
     const scheduled = !!rt.scheduled;
@@ -985,6 +1042,9 @@ function renderRunners() {
 
     const div = document.createElement("div");
     div.className = "runner";
+    if (ui.runnerSortMode) {
+      div.classList.add("reorder-mode");
+    }
     div.draggable = true;
     div.dataset.runnerId = r.id;
     div.innerHTML = `
@@ -1000,6 +1060,10 @@ function renderRunners() {
           </div>
         </div>
         <div class="runnerActions row gap wrapline center">
+          <div class="row gap center reorderControls ${ui.runnerSortMode ? "" : "hidden"}">
+            <button class="btn" data-move-runner-up="${r.id}" ${idx === 0 ? "disabled" : ""} title="Nach oben">↑</button>
+            <button class="btn" data-move-runner-down="${r.id}" ${idx === state.runners.length - 1 ? "disabled" : ""} title="Nach unten">↓</button>
+          </div>
           <button class="btn ${isActive ? "danger" : "primary"}" data-runstop="${r.id}" ${runDisabled ? "disabled title=\"Command fehlt: Bitte zuerst Command eintragen.\"" : ""}>
             ${isActive ? "■ Stop" : "▶ Run"}
           </button>
@@ -1202,6 +1266,26 @@ function renderRunners() {
       r._collapsed = !r._collapsed;
       document.querySelector(`[data-body="${rid}"]`)?.classList.toggle("hidden", r._collapsed);
       t.textContent = r._collapsed ? "+" : "-";
+    });
+  });
+
+  wrap.querySelectorAll("[data-move-runner-up]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const rid = btn.getAttribute("data-move-runner-up");
+      const idx = state.runners.findIndex((x) => x.id === rid);
+      if (!moveItemInArray(state.runners, idx, idx - 1)) return;
+      renderRunners();
+      await autoSave();
+    });
+  });
+
+  wrap.querySelectorAll("[data-move-runner-down]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const rid = btn.getAttribute("data-move-runner-down");
+      const idx = state.runners.findIndex((x) => x.id === rid);
+      if (!moveItemInArray(state.runners, idx, idx + 1)) return;
+      renderRunners();
+      await autoSave();
     });
   });
 
@@ -1763,6 +1847,22 @@ async function wireUI() {
     ui.notifySectionCollapsed = !ui.notifySectionCollapsed;
     saveUIState();
     renderNotifySection();
+  });
+
+  el("sortNotifyBtn")?.addEventListener("click", () => {
+    ui.notifySortMode = !ui.notifySortMode;
+    saveUIState();
+    syncSortModeButtons();
+    renderNotifyProfiles();
+    hulkFlash("info", `NOTIFICATION-SORTIERMODUS ${ui.notifySortMode ? "AKTIV" : "AUS"}.`, 2200);
+  });
+
+  el("sortRunnerBtn")?.addEventListener("click", () => {
+    ui.runnerSortMode = !ui.runnerSortMode;
+    saveUIState();
+    syncSortModeButtons();
+    renderRunners();
+    hulkFlash("info", `RUNNER-SORTIERMODUS ${ui.runnerSortMode ? "AKTIV" : "AUS"}.`, 2200);
   });
 
   el("clearNotifyJournalBtn")?.addEventListener("click", async () => {
