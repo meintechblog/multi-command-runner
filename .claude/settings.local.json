@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(kill:*)",
+      "Bash(curl:*)",
+      "Bash(.venv/bin/python:*)",
+      "Bash(pkill:*)",
+      "Bash(python3:*)",
+      "Bash(timeout 5 bash -c '\ncurl -s \"\"http://localhost:8000/api/events\"\" &\nEVENTS_PID=$!\nsleep 0.5\ncurl -X POST http://localhost:8000/api/run -H \"\"Content-Type: application/json\"\" -d \"\"{\\\\\"\"state\\\\\"\": $\\(curl -s http://localhost:8000/api/state\\), \\\\\"\"runner_id\\\\\"\": \\\\\"\"runner1\\\\\"\"}\"\" > /dev/null 2>&1\nsleep 2\nkill $EVENTS_PID 2>/dev/null\n')",
+      "Bash(sqlite3:*)",
+      "Bash(systemctl --user restart:*)",
+      "Bash(systemctl list-units:*)",
+      "Bash(sudo systemctl restart:*)",
+      "Bash(systemctl status:*)",
+      "Bash(systemctl:*)",
+      "Bash(systemctl restart:*)",
+      "Bash(ps:*)",
+      "Bash(pstree:*)",
+      "Bash(journalctl:*)",
+      "Bash(sudo systemctl status:*)",
+      "Bash(find:*)",
+      "Read(//opt/command-runner/**)"
+    ]
+  }
+}
