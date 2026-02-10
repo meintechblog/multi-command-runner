@@ -2,6 +2,55 @@
 
 This guide targets Debian/Ubuntu-based Linux (including LXC containers).
 
+## 0) Proxmox LXC (Recommended Homelab Setup)
+
+If you run `command-runner` on Proxmox, an unprivileged Debian 12 LXC is a good default.
+
+Template (once per node):
+
+```bash
+pveam update
+pveam available | grep debian-12-standard
+pveam download local debian-12-standard_12.12-1_amd64.tar.zst
+```
+
+Create container (example based on your setup):
+
+```bash
+pct create 1030 \
+  /var/lib/vz/template/cache/debian-12-standard_12.12-1_amd64.tar.zst \
+  --hostname hydra-lxc \
+  --password 'meinpasswort' \
+  --cores 1 \
+  --memory 512 \
+  --swap 512 \
+  --rootfs data:4 \
+  --unprivileged 1 \
+  --onboot 1 \
+  --net0 name=eth0,bridge=vmbr0,ip=dhcp,type=veth \
+  --net1 name=eth1,bridge=vmbr0,ip=10.28.45.2/24,type=veth \
+  --start 1
+```
+
+Recommended reliability settings:
+
+```bash
+pct set 1030 --onboot 1
+pct set 1030 --startup order=3,up=20,down=20
+```
+
+Enter container and continue with step 1 below:
+
+```bash
+pct enter 1030
+```
+
+Notes:
+
+- If you do not need a second network interface, omit `--net1`.
+- `--password` appears in shell history on the Proxmox host. Use a temporary value and change it immediately inside the container if needed.
+- For stable operations, configure regular Proxmox backups (`vzdump`) for this CT.
+
 ## 1) System Packages
 
 ```bash

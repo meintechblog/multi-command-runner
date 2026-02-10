@@ -5,6 +5,7 @@ Web UI for running and monitoring shell commands as reusable runners.
 ## Documentation
 
 - Installation & deployment: `docs/INSTALL.md`
+- Proxmox LXC setup guide: `docs/INSTALL.md#0-proxmox-lxc-recommended-homelab-setup`
 - Security notes: `SECURITY.md`
 
 ## What It Does
