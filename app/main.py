@@ -1050,6 +1050,37 @@ class RunnerManager:
                 }
             return snap
 
+    def refresh_runtime_configs(self, state: AppState) -> None:
+        """
+        Re-compile and apply runtime configs for currently managed runners.
+        This lets scheduler/running runners pick up changed notification options
+        without manual restart.
+        """
+        with self._lock:
+            managed_ids = list(self._cfg.keys())
+
+        if not managed_ids:
+            return
+
+        refreshed: Dict[str, RunnerRuntimeConfig] = {}
+        for rid in managed_ids:
+            try:
+                refreshed[rid] = compile_runner_cfg(state, rid, self._broker)
+            except HTTPException:
+                # Runner may have been removed from state.
+                continue
+            except Exception as e:
+                self._broker.publish(
+                    {"type": "case_error", "runner_id": rid, "pattern": "__refresh__", "error": f"Config refresh failed: {e}"}
+                )
+
+        if not refreshed:
+            return
+
+        with self._lock:
+            for rid, cfg in refreshed.items():
+                self._cfg[rid] = cfg
+
     def _save_runtime_status(self) -> None:
         """Persist runtime status (last_case and last_case_ts) to disk."""
         with self._lock:
@@ -1235,9 +1266,9 @@ class RunnerManager:
     def _reader_thread(self, runner_id: str) -> None:
         with self._lock:
             proc = self._procs.get(runner_id)
-            cfg = self._cfg.get(runner_id)
+            start_cfg = self._cfg.get(runner_id)
 
-        if proc is None or proc.stdout is None or cfg is None:
+        if proc is None or proc.stdout is None or start_cfg is None:
             return
 
         try:
@@ -1248,20 +1279,29 @@ class RunnerManager:
                     if s:
                         self._last_line[runner_id] = s
                 self._broker.publish({"type": "output", "runner_id": runner_id, "line": line})
-                self._match_line_and_notify(cfg, line)
+                self._match_line_and_notify(runner_id, line)
         finally:
             exit_code = proc.wait()
             with self._lock:
                 output = "".join(self._outputs.get(runner_id) or [])
                 stopped = bool(self._stopped.get(runner_id, False))
                 last_line = self._last_line.get(runner_id, "")
+                current_cfg = self._cfg.get(runner_id) or start_cfg
                 self._procs.pop(runner_id, None)
 
-            if cfg.logging_enabled:
-                append_run_log_file(runner_log_path(runner_id), cfg.runner_name, cfg.command, exit_code, output, stopped)
+            if current_cfg.logging_enabled:
+                # Command in log header should reflect the command that was actually started.
+                append_run_log_file(
+                    runner_log_path(runner_id),
+                    current_cfg.runner_name,
+                    start_cfg.command,
+                    exit_code,
+                    output,
+                    stopped,
+                )
 
             # Empty case (pattern+template empty) triggers last-line notification at run end.
-            if cfg.send_last_line_on_finish:
+            if current_cfg.send_last_line_on_finish:
                 msg = last_line if last_line else "(no output)"
                 ts = now_iso()
                 with self._lock:
@@ -1271,11 +1311,11 @@ class RunnerManager:
                 self._save_runtime_status()
                 self._broker.publish({"type": "case_match", "runner_id": runner_id, "pattern": "__on_finish__", "message": msg, "ts": ts})
 
-                if cfg.notify_targets:
+                if current_cfg.notify_targets:
                     self._notifier.enqueue(
-                        targets=cfg.notify_targets,
+                        targets=current_cfg.notify_targets,
                         message=msg,
-                        title=f"{cfg.runner_name} (last line)",
+                        title=f"{current_cfg.runner_name} (last line)",
                         runner_id=runner_id,
                         pattern="__on_finish__",
                     )
@@ -1288,7 +1328,7 @@ class RunnerManager:
                         self._consecutive_failures[runner_id] = 0
                     else:
                         self._consecutive_failures[runner_id] = int(self._consecutive_failures.get(runner_id, 0)) + 1
-                        threshold = max(0, int(cfg.failure_pause_threshold))
+                        threshold = max(0, int(current_cfg.failure_pause_threshold))
                         if threshold > 0 and self._consecutive_failures[runner_id] >= threshold:
                             self._paused_due_failures[runner_id] = True
                             self._stopped[runner_id] = True
@@ -1317,14 +1357,19 @@ class RunnerManager:
                         "status": "paused",
                         "reason": "auto_pause_failures",
                         "consecutive_failures": consecutive_failures,
-                        "threshold": int(cfg.failure_pause_threshold),
+                        "threshold": int(current_cfg.failure_pause_threshold),
                         "ts": now_iso(),
                     }
                 )
                 return
             self._schedule_next(runner_id)
 
-    def _match_line_and_notify(self, cfg: RunnerRuntimeConfig, line: str) -> None:
+    def _match_line_and_notify(self, runner_id: str, line: str) -> None:
+        with self._lock:
+            cfg = self._cfg.get(runner_id)
+        if cfg is None:
+            return
+
         for c in cfg.cases:
             for m in c.regex.finditer(line):
                 msg = render_template_message(c.message_template, m)
@@ -1457,7 +1502,9 @@ def get_state() -> JSONResponse:
 @app.post("/api/state", response_class=JSONResponse)
 def save_state(state: AppState) -> JSONResponse:
     store.save(state.model_dump())
-    ensure_logs_for_runners(state.runners)
+    current = AppState.model_validate(store.load())
+    ensure_logs_for_runners(current.runners)
+    rm.refresh_runtime_configs(current)
     return JSONResponse({"ok": True})
 
 
