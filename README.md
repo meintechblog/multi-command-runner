@@ -61,6 +61,8 @@ Installer script location:
 
 - `scripts/install.sh`
 
+Re-running the same one-liner also works as an update path (pull latest code + restart service).
+
 ## Configuration
 
 Environment variables:

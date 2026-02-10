@@ -44,8 +44,10 @@ What this installer does automatically:
 - clones/updates repo to `/opt/command-runner`
 - creates `.venv` and installs Python dependencies
 - creates/updates `.env` including generated `COMMAND_RUNNER_SECRET_KEY`
-- installs and starts `command-runner.service` (systemd)
+- installs/enables service and restarts `command-runner.service` (systemd)
 - runs API health check and prints access URL/log commands
+
+You can re-run the same one-liner later to apply updates from GitHub.
 
 Optional overrides (example):
 

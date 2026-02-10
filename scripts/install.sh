@@ -176,7 +176,8 @@ EOF
 
 log "Enabling and starting ${SERVICE_NAME}.service"
 systemctl daemon-reload
-systemctl enable --now "${SERVICE_NAME}.service"
+systemctl enable "${SERVICE_NAME}.service"
+systemctl restart "${SERVICE_NAME}.service"
 
 if ! systemctl is-active --quiet "${SERVICE_NAME}.service"; then
   systemctl status "${SERVICE_NAME}.service" --no-pager || true
