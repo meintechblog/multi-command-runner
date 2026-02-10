@@ -2,6 +2,28 @@
 
 Web UI for running and monitoring shell commands as reusable runners.
 
+## Quick Install (One-Liner)
+
+Run inside the target Debian/Ubuntu container as `root`:
+
+```bash
+apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/install.sh | bash
+```
+
+Re-running the same command also works as an update path (pull latest code + restart service).
+
+## System Requirements (Short)
+
+- Debian/Ubuntu Linux with `systemd` and `apt`
+- Root privileges in the target container (or `sudo`)
+- Outbound internet access to Debian mirrors and GitHub
+- Baseline sizing for homelab/LXC: `1 vCPU`, `512 MB RAM`, `4 GB` disk
+
+More installation details (including Proxmox LXC setup and sudo-safe install flow):
+
+- `docs/INSTALL.md`
+- `docs/INSTALL.md#0-proxmox-lxc-recommended-homelab-setup`
+
 ## Documentation
 
 - Installation & deployment: `docs/INSTALL.md`
@@ -29,7 +51,7 @@ Web UI for running and monitoring shell commands as reusable runners.
 This app executes arbitrary shell commands (`bash -lc ...`) from the web UI.
 Run it only in trusted/private environments and never expose it publicly without strong access controls.
 
-## Requirements
+## Requirements (Manual Run / Dev)
 
 - Python 3.11+
 - Linux environment with `bash`
@@ -46,22 +68,6 @@ python -m app.main
 Open:
 
 - `http://127.0.0.1:8080`
-
-## One-Liner Installer (Fresh Debian/LXC)
-
-Run inside the target container as `root`:
-
-```bash
-apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/install.sh | bash
-```
-
-If you use a non-root user with `sudo`, see `docs/INSTALL.md` for the sudo-safe variant.
-
-Installer script location:
-
-- `scripts/install.sh`
-
-Re-running the same one-liner also works as an update path (pull latest code + restart service).
 
 ## Configuration
 
