@@ -332,11 +332,47 @@ class StateStore:
             print("WARN: Credential encryption is disabled; credentials are stored as plain text.")
         if self._get_raw_json() is None:
             self.save(DEFAULT_STATE)
+        self._migrate_encrypt_existing_credentials()
 
     def _get_raw_json(self) -> Optional[str]:
         cur = self._conn.execute("SELECT json FROM state WHERE id=1")
         row = cur.fetchone()
         return row[0] if row else None
+
+    def _migrate_encrypt_existing_credentials(self) -> None:
+        if not self._cipher.enabled:
+            return
+        with self._lock:
+            raw = self._get_raw_json()
+            if raw is None:
+                return
+            try:
+                state = self._merge_defaults(json.loads(raw))
+            except Exception:
+                return
+
+            changed = False
+            for np in state.get("notify_profiles", []) or []:
+                cfg = np.get("config") or {}
+                for key in ("user_key", "api_token"):
+                    val = str(cfg.get(key, "") or "")
+                    if not val or val == MASKED_SECRET:
+                        continue
+                    if val.startswith(self._cipher.PREFIX):
+                        continue
+                    cfg[key] = self._cipher.encrypt(val)
+                    changed = True
+                np["config"] = cfg
+
+            if changed:
+                payload = json.dumps(state, ensure_ascii=False)
+                self._conn.execute(
+                    "INSERT INTO state (id, json) VALUES (1, ?) "
+                    "ON CONFLICT(id) DO UPDATE SET json=excluded.json",
+                    (payload,),
+                )
+                self._conn.commit()
+                print("INFO: Migrated plaintext notification credentials to encrypted storage.")
 
     def _decode_sensitive_inplace(self, state: Dict[str, Any]) -> Dict[str, Any]:
         for np in state.get("notify_profiles", []) or []:
