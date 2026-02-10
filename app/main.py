@@ -212,7 +212,7 @@ DEFAULT_STATE: Dict[str, Any] = {
     "runners": [
         {
             "id": "runner1",
-            "name": "Passwort-Check",
+            "name": "Passwort-Check-Demo",
             "command": """\
 if [ $((RANDOM % 2)) -eq 0 ]; then
   echo "passwort: beispielpasswort"
@@ -231,6 +231,23 @@ fi
             "cases": [
                 {"id": "case_pw", "pattern": r"passwort:\s*(?P<pw>\S+)", "message_template": "Passwort: {pw}", "state": ""},
                 {"id": "case_nf", "pattern": r"passwort nicht gefunden", "message_template": "Passwort nicht gefunden", "state": ""},
+            ],
+        },
+        {
+            "id": "runner_ping_192_168_3_1",
+            "name": "Ping 192.168.3.1 Demo",
+            "command": "curl -sS --max-time 2 http://192.168.3.1 >/dev/null && echo OK || echo FAIL",
+            "logging_enabled": True,
+            "schedule": {"hours": 0, "minutes": 0, "seconds": 5},
+            "max_runs": -1,
+            "alert_cooldown_s": 300,
+            "alert_escalation_s": 1800,
+            "failure_pause_threshold": 5,
+            "notify_profile_ids": [],
+            "notify_profile_updates_only": [],
+            "cases": [
+                {"id": "case_ping_ok", "pattern": r"OK", "message_template": "192.168.3.1 ist erreichbar", "state": ""},
+                {"id": "case_ping_fail", "pattern": r"FAIL", "message_template": "192.168.3.1 ist NICHT erreichbar", "state": ""},
             ],
         }
     ],
