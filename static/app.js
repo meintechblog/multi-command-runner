@@ -506,6 +506,7 @@ function refreshRunnerDirtyState(rid) {
   if (nameInput) {
     nameInput.classList.toggle("is-dirty", isSaveableDirty);
   }
+  syncRunnerRunButton(rid);
 }
 
 function syncRunnerDirtyButton(rid) {
@@ -520,9 +521,11 @@ function syncRunnerDirtyButton(rid) {
     nameInput.classList.toggle("is-dirty", isSaveableDirty);
   }
   const btn = document.querySelector(`[data-save-name="${rid}"]`);
-  if (!btn) return;
-  btn.classList.toggle("invalid", isRunnerSaveBlocked(r));
-  btn.classList.toggle("dirty", ui.dirtyRunners.has(rid));
+  if (btn) {
+    btn.classList.toggle("invalid", isRunnerSaveBlocked(r));
+    btn.classList.toggle("dirty", ui.dirtyRunners.has(rid));
+  }
+  syncRunnerRunButton(rid);
 }
 
 function syncRunnerRunButton(rid) {
@@ -531,10 +534,24 @@ function syncRunnerRunButton(rid) {
   const r = state.runners.find((x) => x.id === rid);
   const rt = runtime.status[rid] || {};
   const isActive = !!rt.running || !!rt.scheduled;
-  const shouldDisable = !isActive && isRunnerCommandMissing(r);
+  if (isActive) {
+    btn.disabled = false;
+    btn.removeAttribute("title");
+    return;
+  }
+
+  let shouldDisable = false;
+  let reason = "";
+  if (!r || isRunnerCommandMissing(r)) {
+    shouldDisable = true;
+    reason = "Command fehlt: Bitte zuerst Command eintragen.";
+  } else if (ui.dirtyRunners.has(rid) || isRunnerSaveBlocked(r)) {
+    shouldDisable = true;
+    reason = "Bitte zuerst speichern (Bearbeitungsmodus).";
+  }
   btn.disabled = shouldDisable;
   if (shouldDisable) {
-    btn.title = "Command fehlt: Bitte zuerst Command eintragen.";
+    btn.title = reason;
   } else {
     btn.removeAttribute("title");
   }
@@ -1017,6 +1034,8 @@ function renderCasesForRunner(rid) {
   const wrap = document.querySelector(`[data-cases="${rid}"]`);
   if (!r || !wrap) return;
   wrap.innerHTML = "";
+  const isRunning = !!(runtime.status[rid]?.running);
+  const lockAttr = isRunning ? "disabled" : "";
 
   r.cases.forEach((c, idx) => {
     const div = document.createElement("div");
@@ -1026,22 +1045,22 @@ function renderCasesForRunner(rid) {
       <div class="grid3" style="margin-top:8px;">
         <label>
           <span>pattern (Regex)</span>
-          <input data-cpat="${c.id}" value="${escapeHtml(c.pattern)}" placeholder="z.B. passwort:\\s*(?P<pw>\\S+)" />
+          <input data-cpat="${c.id}" value="${escapeHtml(c.pattern)}" placeholder="z.B. passwort:\\s*(?P<pw>\\S+)" ${lockAttr} />
         </label>
         <label>
           <span>message template</span>
-          <input data-cmsg="${c.id}" value="${escapeHtml(c.message_template)}" placeholder="z.B. Passwort: {pw}" />
+          <input data-cmsg="${c.id}" value="${escapeHtml(c.message_template)}" placeholder="z.B. Passwort: {pw}" ${lockAttr} />
         </label>
         <label>
           <span>Status</span>
-          <select data-cstate="${c.id}">
+          <select data-cstate="${c.id}" ${lockAttr}>
             ${caseStateOptions(c.state || "")}
           </select>
         </label>
       </div>
       <div class="row between center" style="margin-top:10px;">
         <span class="small">Template: {match}, {g1}, {name} | Status fuer UP/DOWN/Recovery Logik</span>
-        <button class="btn danger" data-crem="${c.id}">Remove</button>
+        <button class="btn danger" data-crem="${c.id}" ${lockAttr}>Remove</button>
       </div>
     `;
     wrap.appendChild(div);
@@ -1093,6 +1112,7 @@ function renderRunners() {
   state.runners.forEach((r, idx) => {
     const rt = runtime.status[r.id] || {};
     const running = !!rt.running;
+    const isRunning = running;
     const scheduled = !!rt.scheduled;
     const paused = !!rt.paused;
     const consecutiveFailures = Math.max(0, Number(rt.consecutive_failures || 0));
@@ -1133,9 +1153,16 @@ function renderRunners() {
     const isDirty = ui.dirtyRunners.has(r.id);
     const saveBlocked = isRunnerSaveBlocked(r);
     const isSaveableDirty = isDirty && !saveBlocked;
-    const canClone = !cloneBlockedByUnsaved && !r._isNew && !isDirty && !saveBlocked;
-    const cloneDisabledAttr = canClone ? "" : "disabled title=\"Nur im gespeicherten Zustand clonbar. Erst speichern.\"";
-    const runDisabled = !isActive && isRunnerCommandMissing(r);
+    const canClone = !isRunning && !cloneBlockedByUnsaved && !r._isNew && !isDirty && !saveBlocked;
+    const cloneDisabledAttr = canClone ? "" : (isRunning ? "disabled title=\"Während Run gesperrt.\"" : "disabled title=\"Nur im gespeicherten Zustand clonbar. Erst speichern.\"");
+    const runDisabled = !isActive && (isRunnerCommandMissing(r) || isDirty || saveBlocked);
+    const runDisabledAttr = (!isActive && isRunnerCommandMissing(r))
+      ? "disabled title=\"Command fehlt: Bitte zuerst Command eintragen.\""
+      : (!isActive && (isDirty || saveBlocked))
+        ? "disabled title=\"Bitte zuerst speichern (Bearbeitungsmodus).\""
+        : "";
+    const lockAttr = isRunning ? "disabled" : "";
+    const removeDisabledAttr = isRunning ? "disabled title=\"Während Run gesperrt.\"": "";
 
     const div = document.createElement("div");
     div.className = `runner${isSaveableDirty ? " is-dirty" : ""}`;
@@ -1145,7 +1172,7 @@ function renderRunners() {
 	          <div class="runnerIdentity">
 	          <div class="runnerTitleRow">
 	            <span class="toggle" data-toggle="${r.id}">${r._collapsed ? "+" : "-"}</span>
-	            <input data-name="${r.id}" value="${escapeHtml(r.name)}" placeholder="Runner Name" />
+	            <input data-name="${r.id}" value="${escapeHtml(r.name)}" placeholder="Runner Name" ${lockAttr} />
 	            <span class="pill runnerElapsed ${showElapsed ? "" : "hidden"}" data-runner-elapsed="${r.id}">${showElapsed ? `⏱ ${escapeHtml(elapsedText)}` : ""}</span>
 	            <span class="pill runnerRunInfo ${showRunInfo ? "" : "hidden"}">${showRunInfo ? escapeHtml(runInfoText) : ""}</span>
 	          </div>
@@ -1153,26 +1180,26 @@ function renderRunners() {
 	            <span class="small runnerStateText">${escapeHtml(runnerStateText)}</span>
 	          </div>
 	        </div>
-        <div class="runnerActions row gap wrapline center">
-          <div class="row gap center reorderControls ${ui.runnerSortMode ? "" : "hidden"}">
-            <button class="btn" data-move-runner-up="${r.id}" ${idx === 0 ? "disabled" : ""} title="Nach oben">↑</button>
-            <button class="btn" data-move-runner-down="${r.id}" ${idx === state.runners.length - 1 ? "disabled" : ""} title="Nach unten">↓</button>
-          </div>
-          <button class="btn ${isActive ? "danger" : "primary"}" data-runstop="${r.id}" ${runDisabled ? "disabled title=\"Command fehlt: Bitte zuerst Command eintragen.\"" : ""}>
-            ${isActive ? "■ Stop" : "▶ Run"}
-          </button>
-          <button class="btn primary runnerSaveBtn ${isDirty ? "dirty" : ""} ${saveBlocked ? "invalid" : ""}" data-save-name="${r.id}">💾 Speichern</button>
-          <button class="btn" data-clone-runner="${r.id}" ${cloneDisabledAttr}>Clone</button>
-          <button class="btn danger" data-delrunner="${r.id}">Remove</button>
-        </div>
-      </div>
+	        <div class="runnerActions row gap wrapline center">
+	          <div class="row gap center reorderControls ${ui.runnerSortMode ? "" : "hidden"}">
+	            <button class="btn" data-move-runner-up="${r.id}" ${(idx === 0 || isRunning) ? "disabled" : ""} title="${isRunning ? "Während Run gesperrt." : "Nach oben"}">↑</button>
+	            <button class="btn" data-move-runner-down="${r.id}" ${(idx === state.runners.length - 1 || isRunning) ? "disabled" : ""} title="${isRunning ? "Während Run gesperrt." : "Nach unten"}">↓</button>
+	          </div>
+	          <button class="btn ${isActive ? "danger" : "primary"}" data-runstop="${r.id}" ${runDisabledAttr}>
+	            ${isActive ? "■ Stop" : "▶ Run"}
+	          </button>
+	          <button class="btn primary runnerSaveBtn ${isDirty ? "dirty" : ""} ${saveBlocked ? "invalid" : ""}" data-save-name="${r.id}">💾 Speichern</button>
+	          <button class="btn" data-clone-runner="${r.id}" ${cloneDisabledAttr}>Clone</button>
+	          <button class="btn danger" data-delrunner="${r.id}" ${removeDisabledAttr}>Remove</button>
+	        </div>
+	      </div>
 
       <div class="runnerBody ${r._collapsed ? "hidden" : ""}" data-body="${r.id}">
         <div class="runnerConfigGrid">
-          <label class="runnerCommandBlock">
-            <span>Command (bash -lc)</span>
-            <textarea rows="7" data-command="${r.id}">${escapeHtml(r.command)}</textarea>
-          </label>
+	            <label class="runnerCommandBlock">
+	            <span>Command (bash -lc)</span>
+	            <textarea rows="7" data-command="${r.id}" ${lockAttr}>${escapeHtml(r.command)}</textarea>
+	          </label>
           <div class="runnerSettingsPanel">
             <div class="runnerSettingsSection">
               <span class="small runnerSectionTitle">Benachrichtigungen</span>
@@ -1186,23 +1213,23 @@ function renderRunners() {
                       <div class="runnerNotifyRow">
                         <span class="runnerNotifyName">${escapeHtml(np.name)}</span>
                         <div class="row gap center runnerNotifyActions">
-                          <button
-                            class="btn ${assigned ? "primary" : ""}"
-                            data-notify-toggle="${r.id}"
-                            data-notify-profile="${np.id}"
-                            title="${assigned ? "Benachrichtigung aktiv" : "Benachrichtigung aus"}"
-                          >
-                            ${assigned ? "Aktiv" : "Aus"}
-                          </button>
-                          <button
-                            class="btn ${onlyUpdates ? "primary" : ""}"
-                            data-notify-updates="${r.id}"
-                            data-notify-profile="${np.id}"
-                            ${assigned ? "" : "disabled title=\"Erst Aktiv einschalten\""}
-                            title="${onlyUpdates ? "Nur Statuswechsel senden" : "Jeden Match senden"}"
-                          >
-                            Only updates
-                          </button>
+	                          <button
+	                            class="btn ${assigned ? "primary" : ""}"
+	                            data-notify-toggle="${r.id}"
+	                            data-notify-profile="${np.id}"
+	                            title="${assigned ? "Benachrichtigung EIN" : "Benachrichtigung AUS"}"
+	                          >
+	                            ${assigned ? "Ein" : "Aus"}
+	                          </button>
+	                          <button
+	                            class="btn ${onlyUpdates ? "primary" : ""}"
+	                            data-notify-updates="${r.id}"
+	                            data-notify-profile="${np.id}"
+	                            ${assigned ? "" : "disabled title=\"Erst Ein schalten\""}
+	                            title="${onlyUpdates ? "Nur Statuswechsel senden" : "Jeden Match senden"}"
+	                          >
+	                            Updates only
+	                          </button>
                         </div>
                       </div>
                     `;
@@ -1210,37 +1237,37 @@ function renderRunners() {
               </div>
             </div>
 
-            <div class="runnerSettingsSection runnerLogButtons">
-              <button class="btn ${r.logging_enabled ? "primary" : ""}" data-logging="${r.id}" title="Wenn aus: kein Schreiben in data/run_<runner_id>.log">📄 Logging ${r.logging_enabled ? "EIN" : "AUS"}</button>
-              <button class="btn" data-openlog="${r.id}">📄 Log öffnen</button>
-              <button class="btn danger" data-clearlog="${r.id}">🗑️ Log leeren</button>
-            </div>
+	            <div class="runnerSettingsSection runnerLogButtons">
+	              <button class="btn ${r.logging_enabled ? "primary" : ""}" data-logging="${r.id}" title="${isRunning ? "Während Run gesperrt." : "Wenn aus: kein Schreiben in data/run_<runner_id>.log"}" ${lockAttr}>📄 Logging ${r.logging_enabled ? "EIN" : "AUS"}</button>
+	              <button class="btn" data-openlog="${r.id}">📄 Log öffnen</button>
+	              <button class="btn danger" data-clearlog="${r.id}" ${lockAttr} title="${isRunning ? "Während Run gesperrt." : "Log-Datei leeren"}">🗑️ Log leeren</button>
+	            </div>
 
-            <div class="runnerSettingsSection">
-              <span class="small runnerSectionTitle">Scheduler (nach Run-Ende)</span>
-              <div class="grid3 runnerScheduleGrid">
-                <label><span>Stunden</span><select data-h="${r.id}">${scheduleOptions(23)}</select></label>
-                <label><span>Minuten</span><select data-m="${r.id}">${scheduleOptions(59)}</select></label>
-                <label><span>Sekunden</span><select data-s="${r.id}">${scheduleOptions(59)}</select></label>
-              </div>
-              <div class="runnerRunsWrap">
-                <label><span>Anzahl Runs</span><select data-runs="${r.id}">${runsOptions()}</select></label>
-              </div>
-              <div class="grid3 runnerScheduleGrid" style="margin-top:10px;">
-                <label>
-                  <span>Alert-Cooldown</span>
-                  <select data-cooldown="${r.id}">${cooldownOptions()}</select>
-                </label>
-                <label>
-                  <span>Eskalation</span>
-                  <select data-escalate="${r.id}">${escalationOptions()}</select>
-                </label>
-                <label>
-                  <span>Auto-Pause</span>
-                  <select data-failpause="${r.id}">${failurePauseOptions()}</select>
-                </label>
-              </div>
-            </div>
+	            <div class="runnerSettingsSection">
+	              <span class="small runnerSectionTitle">Scheduler (nach Run-Ende)</span>
+	              <div class="grid3 runnerScheduleGrid">
+	                <label><span>Stunden</span><select data-h="${r.id}" ${lockAttr}>${scheduleOptions(23)}</select></label>
+	                <label><span>Minuten</span><select data-m="${r.id}" ${lockAttr}>${scheduleOptions(59)}</select></label>
+	                <label><span>Sekunden</span><select data-s="${r.id}" ${lockAttr}>${scheduleOptions(59)}</select></label>
+	              </div>
+	              <div class="runnerRunsWrap">
+	                <label><span>Anzahl Runs</span><select data-runs="${r.id}" ${lockAttr}>${runsOptions()}</select></label>
+	              </div>
+	              <div class="grid3 runnerScheduleGrid" style="margin-top:10px;">
+	                <label>
+	                  <span>Alert-Cooldown</span>
+	                  <select data-cooldown="${r.id}" ${lockAttr}>${cooldownOptions()}</select>
+	                </label>
+	                <label>
+	                  <span>Eskalation</span>
+	                  <select data-escalate="${r.id}" ${lockAttr}>${escalationOptions()}</select>
+	                </label>
+	                <label>
+	                  <span>Auto-Pause</span>
+	                  <select data-failpause="${r.id}" ${lockAttr}>${failurePauseOptions()}</select>
+	                </label>
+	              </div>
+	            </div>
           </div>
         </div>
 
@@ -1252,11 +1279,11 @@ function renderRunners() {
             Regex pro Output-Zeile. Jeder Match → Pushover (nur wenn Token+UserKey gesetzt).
             Leerer Case (pattern+message leer) → am Ende letzte Output-Zeile senden.
           </p>
-          <div data-cases="${r.id}"></div>
-          <div class="row" style="margin-top:10px; justify-content:flex-end;">
-            <button class="btn" data-addcase="${r.id}">+ Case</button>
-          </div>
-        </div>
+	          <div data-cases="${r.id}"></div>
+	          <div class="row" style="margin-top:10px; justify-content:flex-end;">
+	            <button class="btn" data-addcase="${r.id}" ${lockAttr} title="${isRunning ? "Während Run gesperrt." : "Neuen Case hinzufügen"}">+ Case</button>
+	          </div>
+	        </div>
 
         <div class="runnerSection">
           <div class="runnerSectionHead">
@@ -1550,6 +1577,13 @@ function renderRunners() {
           // Run action
           if (!validateStateBeforePersist()) return;
           const r = state.runners.find((x) => x.id === rid);
+          if (ui.dirtyRunners.has(rid) || isRunnerSaveBlocked(r)) {
+            hulkFlash("info", `RUN BLOCKIERT: ${rid} IST IM BEARBEITUNGSMODUS. BITTE ZUERST SPEICHERN.`, 4200);
+            logHulk("info", `RUN BLOCKIERT: ${rid} IST IM BEARBEITUNGSMODUS. BITTE ZUERST SPEICHERN.`);
+            syncRunnerRunButton(rid);
+            syncRunnerDirtyButton(rid);
+            return;
+          }
           if (isRunnerCommandMissing(r)) {
             hulkFlash("error", `RUN NICHT MOEGLICH: BEI ${rid} FEHLT DER COMMAND.`);
             logHulk("error", `RUN BLOCKIERT: COMMAND FEHLT BEI ${rid}.`);
