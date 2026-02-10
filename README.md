@@ -2,6 +2,11 @@
 
 Web UI for running and monitoring shell commands as reusable runners.
 
+## Documentation
+
+- Installation & deployment: `docs/INSTALL.md`
+- Security notes: `SECURITY.md`
+
 ## What It Does
 
 - Manage multiple runners (name, command, schedule, cases, notifications)
@@ -60,6 +65,17 @@ HOST=0.0.0.0 PORT=8080 DATA_DIR=/opt/command-runner/data python -m app.main
 - App state is stored in SQLite (`data/app.db`)
 - Runner runtime status is persisted (`data/runtime_status.json`)
 - Runner logs are written as `data/run_<runner_id>.log`
+- Notification credentials are stored encrypted at rest (Fernet, `enc:v1:` format)
+- Encryption key source:
+  - `COMMAND_RUNNER_SECRET_KEY` env var (recommended)
+  - fallback: auto-generated `data/.credentials.key`
+
+## Credential Handling
+
+- API responses (`GET /api/state`) return masked credential values (`__SECRET_SET__`) instead of raw tokens
+- Existing secrets remain unchanged unless explicitly overwritten in the UI
+- The backend decrypts credentials only when needed for notification delivery/testing
+- If encrypted credentials cannot be decrypted (wrong key), delivery for that service will fail until corrected
 
 ## Notification Behavior
 

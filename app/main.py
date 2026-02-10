@@ -22,6 +22,8 @@ import json
 import os
 import queue
 import re
+import base64
+import hashlib
 import signal
 import sqlite3
 import subprocess
@@ -35,6 +37,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from cryptography.fernet import Fernet, InvalidToken
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
@@ -46,6 +49,103 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("DATA_DIR", str(BASE_DIR / "data"))).resolve()
 DB_PATH = DATA_DIR / "app.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+MASKED_SECRET = "__SECRET_SET__"
+
+
+class CredentialCipher:
+    """
+    Encrypt/decrypt notification credentials at rest.
+    - Key source priority:
+      1) COMMAND_RUNNER_SECRET_KEY env var
+      2) DATA_DIR/.credentials.key (auto-created on first start)
+    - Stored format: enc:v1:<fernet-token>
+    """
+
+    PREFIX = "enc:v1:"
+
+    def __init__(self, data_dir: Path) -> None:
+        self._fernet: Optional[Fernet] = None
+        self._enabled = False
+        self._source = "disabled"
+        self._init_fernet(data_dir)
+
+    @staticmethod
+    def _build_fernet(secret: str) -> Fernet:
+        # Accept either a valid Fernet key or an arbitrary passphrase.
+        raw = secret.encode("utf-8")
+        try:
+            return Fernet(raw)
+        except Exception:
+            derived = base64.urlsafe_b64encode(hashlib.sha256(raw).digest())
+            return Fernet(derived)
+
+    def _init_fernet(self, data_dir: Path) -> None:
+        env_secret = os.environ.get("COMMAND_RUNNER_SECRET_KEY", "").strip()
+        if env_secret:
+            self._fernet = self._build_fernet(env_secret)
+            self._enabled = True
+            self._source = "env"
+            return
+
+        key_file = data_dir / ".credentials.key"
+        try:
+            if not key_file.exists():
+                key_file.write_text(Fernet.generate_key().decode("ascii"), encoding="utf-8")
+                try:
+                    os.chmod(key_file, 0o600)
+                except Exception:
+                    pass
+
+            file_secret = key_file.read_text(encoding="utf-8").strip()
+            if not file_secret:
+                return
+            self._fernet = self._build_fernet(file_secret)
+            self._enabled = True
+            self._source = "file"
+        except Exception as e:
+            print(f"WARN: Could not initialize credential cipher: {e}")
+            self._enabled = False
+            self._source = "disabled"
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled and self._fernet is not None
+
+    @property
+    def source(self) -> str:
+        return self._source
+
+    def encrypt(self, value: str) -> str:
+        s = str(value or "")
+        if not s:
+            return ""
+        if s.startswith(self.PREFIX):
+            return s
+        if not self.enabled:
+            return s
+        assert self._fernet is not None
+        token = self._fernet.encrypt(s.encode("utf-8")).decode("ascii")
+        return f"{self.PREFIX}{token}"
+
+    def decrypt(self, value: str) -> str:
+        s = str(value or "")
+        if not s:
+            return ""
+        if not s.startswith(self.PREFIX):
+            return s
+        if not self.enabled:
+            print("WARN: Encrypted credential found but cipher is disabled.")
+            return ""
+        assert self._fernet is not None
+        token = s[len(self.PREFIX):]
+        try:
+            return self._fernet.decrypt(token.encode("ascii")).decode("utf-8")
+        except InvalidToken:
+            print("ERROR: Could not decrypt credential (invalid token).")
+            return ""
+        except Exception as e:
+            print(f"ERROR: Could not decrypt credential: {e}")
+            return ""
 
 
 def _new_id(prefix: str) -> str:
@@ -205,6 +305,7 @@ class StopRequest(BaseModel):
 class StateStore:
     def __init__(self, db_path: Path) -> None:
         self._lock = threading.Lock()
+        self._cipher = CredentialCipher(DATA_DIR)
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.execute(
             "CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY CHECK(id=1), json TEXT NOT NULL)"
@@ -225,6 +326,10 @@ class StateStore:
             """
         )
         self._conn.commit()
+        if self._cipher.enabled:
+            print(f"INFO: Credential encryption enabled ({self._cipher.source}).")
+        else:
+            print("WARN: Credential encryption is disabled; credentials are stored as plain text.")
         if self._get_raw_json() is None:
             self.save(DEFAULT_STATE)
 
@@ -233,21 +338,98 @@ class StateStore:
         row = cur.fetchone()
         return row[0] if row else None
 
+    def _decode_sensitive_inplace(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        for np in state.get("notify_profiles", []) or []:
+            cfg = np.get("config") or {}
+            cfg["user_key"] = self._cipher.decrypt(str(cfg.get("user_key", "") or ""))
+            cfg["api_token"] = self._cipher.decrypt(str(cfg.get("api_token", "") or ""))
+            np["config"] = cfg
+        return state
+
+    def _encode_sensitive_inplace(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        for np in state.get("notify_profiles", []) or []:
+            cfg = np.get("config") or {}
+            user_key = str(cfg.get("user_key", "") or "")
+            api_token = str(cfg.get("api_token", "") or "")
+            if user_key and user_key != MASKED_SECRET:
+                cfg["user_key"] = self._cipher.encrypt(user_key)
+            if api_token and api_token != MASKED_SECRET:
+                cfg["api_token"] = self._cipher.encrypt(api_token)
+            np["config"] = cfg
+        return state
+
+    @staticmethod
+    def _mask_sensitive_for_client(state: Dict[str, Any]) -> Dict[str, Any]:
+        client_state = json.loads(json.dumps(state, ensure_ascii=False))
+        for np in client_state.get("notify_profiles", []) or []:
+            cfg = np.get("config") or {}
+            cfg["user_key"] = MASKED_SECRET if str(cfg.get("user_key", "") or "") else ""
+            cfg["api_token"] = MASKED_SECRET if str(cfg.get("api_token", "") or "") else ""
+            np["config"] = cfg
+        return client_state
+
+    @staticmethod
+    def _resolve_masked_profile_secrets(
+        incoming_state: Dict[str, Any],
+        existing_state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        prev_by_id: Dict[str, Dict[str, Any]] = {}
+        for np in existing_state.get("notify_profiles", []) or []:
+            prev_by_id[str(np.get("id", ""))] = np
+
+        for np in incoming_state.get("notify_profiles", []) or []:
+            npid = str(np.get("id", ""))
+            cfg = np.get("config") or {}
+            prev_cfg = (prev_by_id.get(npid) or {}).get("config") or {}
+            for key in ("user_key", "api_token"):
+                val = str(cfg.get(key, "") or "")
+                if val == MASKED_SECRET:
+                    cfg[key] = str(prev_cfg.get(key, "") or "")
+            np["config"] = cfg
+        return incoming_state
+
+    def _load_unlocked(self, *, mask_for_client: bool = False) -> Dict[str, Any]:
+        raw = self._get_raw_json()
+        if raw is None:
+            # Avoid deadlock by performing direct insert here instead of calling self.save()
+            base = self._merge_defaults(dict(DEFAULT_STATE))
+            to_store = self._encode_sensitive_inplace(json.loads(json.dumps(base, ensure_ascii=False)))
+            payload = json.dumps(to_store, ensure_ascii=False)
+            self._conn.execute(
+                "INSERT INTO state (id, json) VALUES (1, ?) "
+                "ON CONFLICT(id) DO UPDATE SET json=excluded.json",
+                (payload,),
+            )
+            self._conn.commit()
+            loaded = base
+        else:
+            try:
+                loaded = self._merge_defaults(json.loads(raw))
+            except json.JSONDecodeError:
+                loaded = self._merge_defaults(dict(DEFAULT_STATE))
+
+        self._decode_sensitive_inplace(loaded)
+        if mask_for_client:
+            return self._mask_sensitive_for_client(loaded)
+        return loaded
+
     def load(self) -> Dict[str, Any]:
         with self._lock:
-            raw = self._get_raw_json()
-            if raw is None:
-                self.save(DEFAULT_STATE)
-                return dict(DEFAULT_STATE)
-            try:
-                data = json.loads(raw)
-            except json.JSONDecodeError:
-                data = dict(DEFAULT_STATE)
-            return self._merge_defaults(data)
+            return self._load_unlocked(mask_for_client=False)
+
+    def load_for_client(self) -> Dict[str, Any]:
+        with self._lock:
+            return self._load_unlocked(mask_for_client=True)
 
     def save(self, state: Dict[str, Any]) -> None:
         with self._lock:
-            payload = json.dumps(self._merge_defaults(state), ensure_ascii=False)
+            incoming = self._merge_defaults(json.loads(json.dumps(state, ensure_ascii=False)))
+
+            existing = self._load_unlocked(mask_for_client=False)
+            self._resolve_masked_profile_secrets(incoming, existing)
+            self._encode_sensitive_inplace(incoming)
+
+            payload = json.dumps(incoming, ensure_ascii=False)
             self._conn.execute(
                 "INSERT INTO state (id, json) VALUES (1, ?) "
                 "ON CONFLICT(id) DO UPDATE SET json=excluded.json",
@@ -257,14 +439,7 @@ class StateStore:
 
     def get_notify_profile(self, profile_id: str) -> Optional[Dict[str, Any]]:
         with self._lock:
-            raw = self._get_raw_json()
-            if raw is None:
-                data = self._merge_defaults(dict(DEFAULT_STATE))
-            else:
-                try:
-                    data = self._merge_defaults(json.loads(raw))
-                except json.JSONDecodeError:
-                    data = self._merge_defaults(dict(DEFAULT_STATE))
+            data = self._load_unlocked(mask_for_client=False)
 
             for profile in data.get("notify_profiles", []):
                 if profile.get("id") == profile_id:
@@ -1240,7 +1415,7 @@ def index(request: Request) -> HTMLResponse:
 
 @app.get("/api/state", response_class=JSONResponse)
 def get_state() -> JSONResponse:
-    return JSONResponse(store.load())
+    return JSONResponse(store.load_for_client())
 
 
 @app.post("/api/state", response_class=JSONResponse)
@@ -1280,8 +1455,9 @@ def clear_notifications() -> JSONResponse:
 @app.post("/api/run", response_class=JSONResponse)
 def run(req: RunRequest) -> JSONResponse:
     store.save(req.state.model_dump())
-    ensure_logs_for_runners(req.state.runners)
-    cfg = compile_runner_cfg(req.state, req.runner_id, broker)
+    current = AppState.model_validate(store.load())
+    ensure_logs_for_runners(current.runners)
+    cfg = compile_runner_cfg(current, req.runner_id, broker)
     rm.start(cfg, reset_schedule=True)
     return JSONResponse({"ok": True})
 

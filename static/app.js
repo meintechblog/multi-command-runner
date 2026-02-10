@@ -12,6 +12,7 @@ const runtime = {
 };
 
 const UI_STORAGE_KEY = "command-runner.ui";
+const MASKED_SECRET = "__SECRET_SET__";
 
 function loadUIState() {
   try {
@@ -179,6 +180,17 @@ function hulkFlash(kind, text, ttlMs = 6500) {
 function logHulk(kind, text, tsIso = null) {
   const ts = tsIso || new Date().toISOString();
   appendEvents(`[${ts}] ${hulkMessage(kind, text)}\n`);
+}
+
+function maskNotifySecretsInState() {
+  state.notify_profiles.forEach((np) => {
+    const cfg = np?.config || {};
+    const userKey = String(cfg.user_key || "");
+    const apiToken = String(cfg.api_token || "");
+    cfg.user_key = userKey ? MASKED_SECRET : "";
+    cfg.api_token = apiToken ? MASKED_SECRET : "";
+    np.config = cfg;
+  });
 }
 
 async function copyText(text) {
@@ -1698,6 +1710,8 @@ async function autoSave() {
     state.runners.forEach((r) => {
       r._isNew = false;
     });
+    // Keep credentials masked in client state after successful save.
+    maskNotifySecretsInState();
     syncSavedNotifySignatures();
     syncSavedRunnerSignatures();
     clearAllDirtyNotifyProfiles();
