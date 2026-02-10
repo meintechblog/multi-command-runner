@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SCRIPT_VERSION="1.0.0"
+SCRIPT_VERSION="1.0.1"
 
 REPO_URL="${REPO_URL:-https://github.com/meintechblog/command-runner.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
@@ -62,6 +62,15 @@ on_error() {
 
 trap 'on_error ${LINENO}' ERR
 
+ensure_git_safe_directory() {
+  local repo_dir="$1"
+  if git -C "${repo_dir}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    return 0
+  fi
+  warn "Git safe.directory required for ${repo_dir}; adding it for root."
+  git config --global --add safe.directory "${repo_dir}"
+}
+
 if [[ "${EUID}" -ne 0 ]]; then
   fail "Please run as root. Example: curl -fsSL <installer-url> | sudo bash"
 fi
@@ -96,6 +105,7 @@ fi
 
 if [[ -d "${INSTALL_DIR}/.git" ]]; then
   log "Updating existing repository in ${INSTALL_DIR}"
+  ensure_git_safe_directory "${INSTALL_DIR}"
   git -C "${INSTALL_DIR}" fetch --prune origin
   git -C "${INSTALL_DIR}" checkout "${REPO_BRANCH}"
   git -C "${INSTALL_DIR}" pull --ff-only origin "${REPO_BRANCH}"
