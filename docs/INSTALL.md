@@ -44,7 +44,9 @@ What this installer does automatically:
 - clones/updates repo to `/opt/command-runner`
 - creates `.venv` and installs Python dependencies
 - creates/updates `.env` including generated `COMMAND_RUNNER_SECRET_KEY`
-- bootstraps HTTP Basic auth (`COMMAND_RUNNER_AUTH_USER` / `COMMAND_RUNNER_AUTH_PASSWORD`) if missing
+- on fresh installs: asks whether HTTP Basic auth should be enabled
+- if enabled: lets you set username/password interactively (password minimum: 8 characters)
+- on updates: keeps existing auth values without interactive auth prompt
 - installs/enables service and restarts `command-runner.service` (systemd)
 - runs API health check and prints access URL/log commands
 

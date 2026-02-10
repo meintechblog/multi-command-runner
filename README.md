@@ -11,8 +11,10 @@ apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubuserco
 ```
 
 Re-running the same command also works as an update path (pull latest code + restart service).
-The installer also bootstraps HTTP Basic auth by default (or keeps existing auth values).
-If a new password is generated, it is shown once at the end of installer output.
+On fresh installs, the installer asks whether HTTP Basic auth should be enabled.
+If enabled, you can set username/password directly (password minimum: 8 characters).
+On updates, existing auth values are kept and no interactive auth prompt is shown.
+If auth is enabled and no password exists, a secure password is generated and shown once.
 You can disable auth bootstrap explicitly with `ENABLE_BASIC_AUTH=0` (not recommended).
 
 ## System Requirements (Short)
@@ -32,6 +34,7 @@ More installation details (including Proxmox LXC setup and sudo-safe install flo
 - Installation & deployment: `docs/INSTALL.md`
 - Proxmox LXC setup guide: `docs/INSTALL.md#0-proxmox-lxc-recommended-homelab-setup`
 - Security notes: `SECURITY.md`
+- Changelog: `CHANGELOG.md`
 
 ## What It Does
 

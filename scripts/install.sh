@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SCRIPT_VERSION="1.1.3"
+SCRIPT_VERSION="1.1.4"
 
 REPO_URL="${REPO_URL:-https://github.com/meintechblog/command-runner.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
@@ -13,6 +13,7 @@ HOST_BIND="${HOST_BIND:-0.0.0.0}"
 PORT_BIND="${PORT_BIND:-8080}"
 DATA_DIR="${DATA_DIR:-${INSTALL_DIR}/data}"
 RUN_AS_ROOT="${RUN_AS_ROOT:-0}"
+ENABLE_BASIC_AUTH_WAS_SET="${ENABLE_BASIC_AUTH+x}"
 ENABLE_BASIC_AUTH="${ENABLE_BASIC_AUTH:-1}"
 
 SERVICE_UNIT_PATH="/etc/systemd/system/${SERVICE_NAME}.service"
@@ -20,6 +21,10 @@ ENV_FILE="${INSTALL_DIR}/.env"
 generated_auth_password=""
 effective_auth_user=""
 effective_auth_password=""
+install_auth_user=""
+install_auth_password=""
+manual_auth_configured="0"
+is_fresh_install="0"
 
 log() {
   printf "%s [INFO] %s\n" "$(date '+%F %T')" "$*"
@@ -79,6 +84,87 @@ ensure_git_safe_directory() {
   git config --global --add safe.directory "${repo_dir}"
 }
 
+prompt_from_tty() {
+  local prompt_text="$1"
+  local default_value="${2:-}"
+  local answer=""
+
+  if [[ -n "${default_value}" ]]; then
+    read -r -p "${prompt_text} [${default_value}]: " answer < /dev/tty
+  else
+    read -r -p "${prompt_text}: " answer < /dev/tty
+  fi
+
+  if [[ -z "${answer}" ]]; then
+    answer="${default_value}"
+  fi
+  printf "%s" "${answer}"
+}
+
+read_password_from_tty() {
+  local prompt_text="$1"
+  local pw=""
+  read -r -s -p "${prompt_text}: " pw < /dev/tty
+  echo > /dev/tty
+  printf "%s" "${pw}"
+}
+
+configure_auth_for_fresh_install() {
+  if [[ "${is_fresh_install}" != "1" ]]; then
+    return
+  fi
+  if [[ -n "${ENABLE_BASIC_AUTH_WAS_SET}" ]]; then
+    log "ENABLE_BASIC_AUTH explicitly set -> skipping interactive auth prompt."
+    return
+  fi
+  if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then
+    warn "No interactive TTY detected. Using default auth bootstrap behavior (enabled)."
+    return
+  fi
+
+  local choice=""
+  while true; do
+    choice="$(prompt_from_tty "Enable HTTP Basic auth for Web UI/API?" "Y")"
+    choice="$(printf "%s" "${choice}" | tr '[:upper:]' '[:lower:]')"
+    case "${choice}" in
+      y|yes)
+        ENABLE_BASIC_AUTH="1"
+        break
+        ;;
+      n|no)
+        ENABLE_BASIC_AUTH="0"
+        break
+        ;;
+      *)
+        echo "Please answer with Y or N." > /dev/tty
+        ;;
+    esac
+  done
+
+  if [[ "${ENABLE_BASIC_AUTH}" != "1" ]]; then
+    log "Basic auth disabled for this fresh installation."
+    return
+  fi
+
+  while true; do
+    install_auth_user="$(prompt_from_tty "Basic auth username" "admin")"
+    if [[ -n "${install_auth_user}" ]]; then
+      break
+    fi
+    echo "Username must not be empty." > /dev/tty
+  done
+
+  while true; do
+    install_auth_password="$(read_password_from_tty "Basic auth password (min 8 chars)")"
+    if [[ "${#install_auth_password}" -ge 8 ]]; then
+      break
+    fi
+    echo "Password too short (minimum 8 characters)." > /dev/tty
+  done
+
+  manual_auth_configured="1"
+}
+
 if [[ "${EUID}" -ne 0 ]]; then
   fail "Please run as root. Example: curl -fsSL <installer-url> | sudo bash"
 fi
@@ -118,12 +204,14 @@ if [[ -d "${INSTALL_DIR}/.git" ]]; then
   git -C "${INSTALL_DIR}" checkout "${REPO_BRANCH}"
   git -C "${INSTALL_DIR}" pull --ff-only origin "${REPO_BRANCH}"
 elif [[ -d "${INSTALL_DIR}" && -n "$(ls -A "${INSTALL_DIR}" 2>/dev/null)" ]]; then
+  is_fresh_install="1"
   backup_dir="${INSTALL_DIR}.preinstall.$(date +%Y%m%d-%H%M%S)"
   warn "${INSTALL_DIR} exists and is not an empty git clone. Moving it to ${backup_dir}"
   mv "${INSTALL_DIR}" "${backup_dir}"
   log "Cloning repository to ${INSTALL_DIR}"
   git clone --branch "${REPO_BRANCH}" "${REPO_URL}" "${INSTALL_DIR}"
 else
+  is_fresh_install="1"
   log "Cloning repository to ${INSTALL_DIR}"
   git clone --branch "${REPO_BRANCH}" "${REPO_URL}" "${INSTALL_DIR}"
 fi
@@ -155,9 +243,18 @@ if ! grep -qE "^[[:space:]]*COMMAND_RUNNER_SECRET_KEY=" "${ENV_FILE}"; then
   printf "COMMAND_RUNNER_SECRET_KEY=%s\n" "${secret_key}" >> "${ENV_FILE}"
 fi
 
+configure_auth_for_fresh_install
+
 if [[ "${ENABLE_BASIC_AUTH}" == "1" ]]; then
   current_auth_user="$(grep -E "^[[:space:]]*COMMAND_RUNNER_AUTH_USER=" "${ENV_FILE}" | tail -n 1 | cut -d'=' -f2- || true)"
   current_auth_pass="$(grep -E "^[[:space:]]*COMMAND_RUNNER_AUTH_PASSWORD=" "${ENV_FILE}" | tail -n 1 | cut -d'=' -f2- || true)"
+
+  if [[ "${manual_auth_configured}" == "1" ]]; then
+    current_auth_user="${install_auth_user}"
+    current_auth_pass="${install_auth_password}"
+    upsert_env "COMMAND_RUNNER_AUTH_USER" "${current_auth_user}" "${ENV_FILE}"
+    upsert_env "COMMAND_RUNNER_AUTH_PASSWORD" "${current_auth_pass}" "${ENV_FILE}"
+  fi
 
   if [[ -z "${current_auth_user}" ]]; then
     current_auth_user="admin"
@@ -277,7 +374,9 @@ echo "------------------------------------------------------------"
 if [[ "${ENABLE_BASIC_AUTH}" == "1" && -n "${effective_auth_user}" ]]; then
   echo "WEB UI AUTH (BASIC)"
   echo "Username: ${effective_auth_user}"
-  if [[ -n "${generated_auth_password}" ]]; then
+  if [[ "${manual_auth_configured}" == "1" ]]; then
+    echo "Password: custom value entered during installation."
+  elif [[ -n "${generated_auth_password}" ]]; then
     echo "Password (generated now): ${generated_auth_password}"
     echo "IMPORTANT: Save this password now. It is only shown once."
   else
