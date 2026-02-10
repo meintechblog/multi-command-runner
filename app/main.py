@@ -1688,7 +1688,7 @@ broker = EventBroker()
 notifier = NotificationWorker(broker, store)
 rm = RunnerManager(broker, notifier)
 
-app = FastAPI(title="command-runner", version="2.1.2")
+app = FastAPI(title="command-runner", version="2.1.3")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 

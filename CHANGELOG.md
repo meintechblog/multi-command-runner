@@ -6,6 +6,17 @@ All notable changes to this project will be documented in this file.
 
 - Pending
 
+## [2.1.3] - 2026-02-10
+
+### Added
+
+- Central collapse/expand toggle for the runners section (persisted in UI state).
+
+### Changed
+
+- Runner section label renamed to "Runners".
+- Empty notification journal no longer shows a placeholder line.
+
 ## [2.1.2] - 2026-02-10
 
 ### Added

@@ -21,6 +21,7 @@ function loadUIState() {
     const parsed = JSON.parse(raw);
     return {
       notifySectionCollapsed: !!parsed.notifySectionCollapsed,
+      runnerSectionCollapsed: !!parsed.runnerSectionCollapsed,
       notifySortMode: !!parsed.notifySortMode,
       runnerSortMode: !!parsed.runnerSortMode,
     };
@@ -35,6 +36,7 @@ function saveUIState() {
       UI_STORAGE_KEY,
       JSON.stringify({
         notifySectionCollapsed: !!ui.notifySectionCollapsed,
+        runnerSectionCollapsed: !!ui.runnerSectionCollapsed,
         notifySortMode: !!ui.notifySortMode,
         runnerSortMode: !!ui.runnerSortMode,
       }),
@@ -47,6 +49,7 @@ function saveUIState() {
 const loadedUIState = loadUIState();
 const ui = {
   notifySectionCollapsed: loadedUIState.notifySectionCollapsed ?? false,
+  runnerSectionCollapsed: loadedUIState.runnerSectionCollapsed ?? false,
   notifySortMode: loadedUIState.notifySortMode ?? false,
   runnerSortMode: loadedUIState.runnerSortMode ?? false,
   notifyJournalEntries: [],
@@ -147,7 +150,7 @@ function renderNotifyJournal() {
   const out = el("notifyJournal");
   if (!out) return;
   if (!ui.notifyJournalEntries.length) {
-    out.textContent = "Noch keine Notification-Einträge.";
+    out.textContent = "";
     return;
   }
   out.textContent = ui.notifyJournalEntries.map(formatNotifyJournalLine).join("\n");
@@ -578,10 +581,18 @@ function renderNotifySection() {
 function renderRunnerSection() {
   const count = state.runners.length;
   const title = el("runnerSectionTitle");
+  const toggle = el("runnerSectionToggle");
+  const body = el("runnerSectionBody");
   const sortBtn = el("sortRunnerBtn");
 
   if (title) {
-    title.textContent = count > 0 ? `Runner (${count})` : "Runner";
+    title.textContent = count > 0 ? `Runners (${count})` : "Runners";
+  }
+  if (toggle) {
+    toggle.textContent = ui.runnerSectionCollapsed ? "+" : "-";
+  }
+  if (body) {
+    body.classList.toggle("hidden", ui.runnerSectionCollapsed);
   }
   if (count <= 1 && ui.runnerSortMode) {
     ui.runnerSortMode = false;
@@ -1850,6 +1861,12 @@ async function wireUI() {
     renderNotifySection();
   });
 
+  el("runnerSectionToggle")?.addEventListener("click", () => {
+    ui.runnerSectionCollapsed = !ui.runnerSectionCollapsed;
+    saveUIState();
+    renderRunnerSection();
+  });
+
   el("sortNotifyBtn")?.addEventListener("click", () => {
     ui.notifySortMode = !ui.notifySortMode;
     saveUIState();
@@ -1904,6 +1921,8 @@ async function wireUI() {
   });
 
   el("addRunnerBtn").addEventListener("click", async () => {
+    ui.runnerSectionCollapsed = false;
+    saveUIState();
     const rid = `runner_${uuidFallback()}`;
     state.runners.push({
       id: rid,

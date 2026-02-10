@@ -37,19 +37,24 @@
         </div>
       </section>
 
-      <section class="card">
-        <div class="row between center wrapline" style="margin-bottom:12px;">
-          <h2 id="runnerSectionTitle">Runner</h2>
-          <div class="row gap wrapline">
-            <button id="sortRunnerBtn" class="btn">Sortieren: Aus</button>
-            <button id="exportBtn" class="btn">⬇ Export</button>
-            <button id="importBtn" class="btn">⬆ Import</button>
-            <button id="addRunnerBtn" class="btn primary">+ Runner</button>
-            <input type="file" id="importFile" accept=".json" style="display:none;" />
-          </div>
-        </div>
-        <div id="runners"></div>
-      </section>
+	      <section class="card">
+	        <div class="row between center wrapline" style="margin-bottom:12px;">
+	          <div class="row gap center">
+	            <span id="runnerSectionToggle" class="toggle">-</span>
+	            <h2 id="runnerSectionTitle" style="margin:0;">Runners</h2>
+	          </div>
+	          <div class="row gap wrapline">
+	            <button id="sortRunnerBtn" class="btn">Sortieren: Aus</button>
+	            <button id="exportBtn" class="btn">⬇ Export</button>
+	            <button id="importBtn" class="btn">⬆ Import</button>
+	            <button id="addRunnerBtn" class="btn primary">+ Runner</button>
+	            <input type="file" id="importFile" accept=".json" style="display:none;" />
+	          </div>
+	        </div>
+	        <div id="runnerSectionBody">
+	          <div id="runners"></div>
+	        </div>
+	      </section>
 
 	      <section class="card">
 	        <div class="row between center" style="margin-bottom:10px;">
@@ -85,6 +90,7 @@
 	            <li>Reihenfolge kann per Sortiermodus mit <code>↑/↓</code> geändert werden (mobil-freundlich).</li>
 	            <li>Änderungen markieren Speichern-Button und Eintrag dezent (<code>dirty</code>).</li>
 	            <li><code>Clone</code> erstellt eine gespeicherte Kopie eines Runners direkt darunter.</li>
+	            <li>Die Runner-Sektion kann oben zentral ein-/zugeklappt werden.</li>
 	          </ul>
           <h3>2) Scheduler</h3>
           <ul>
