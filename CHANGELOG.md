@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 
 - Pending
 
+## [2.1.2] - 2026-02-10
+
+### Added
+
+- "Events leeren" button (clears the events output panel immediately).
+
+### Changed
+
+- "Journal leeren" now triggers immediately (no confirmation prompt).
+
 ## [2.1.1] - 2026-02-10
 
 ### Added

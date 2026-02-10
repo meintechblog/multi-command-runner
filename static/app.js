@@ -1867,7 +1867,6 @@ async function wireUI() {
   });
 
   el("clearNotifyJournalBtn")?.addEventListener("click", async () => {
-    if (!confirm("Notification-Journal wirklich leeren?")) return;
     try {
       await apiFetch("/api/notifications", { method: "DELETE" });
       ui.notifyJournalEntries = [];
@@ -1878,6 +1877,12 @@ async function wireUI() {
       hulkFlash("error", `JOURNAL LEEREN FEHLGESCHLAGEN: ${e.message}`);
       logHulk("error", `JOURNAL LEEREN FEHLGESCHLAGEN: ${e.message}`);
     }
+  });
+
+  el("clearEventsBtn")?.addEventListener("click", () => {
+    const out = el("events");
+    if (out) out.textContent = "";
+    hulkFlash("success", "EVENTS GELEERT.", 2200);
   });
 
   el("addNotifyBtn").addEventListener("click", () => {

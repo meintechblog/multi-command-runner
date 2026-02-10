@@ -51,18 +51,21 @@
         <div id="runners"></div>
       </section>
 
-      <section class="card">
-        <div class="row between center" style="margin-bottom:10px;">
-          <h2 style="margin:0;">Notification journal</h2>
-          <button id="clearNotifyJournalBtn" class="btn danger">Journal leeren</button>
-        </div>
-        <pre id="notifyJournal" class="output"></pre>
-      </section>
-
-      <section class="card">
-        <h2>Events</h2>
-        <pre id="events" class="output"></pre>
-      </section>
+	      <section class="card">
+	        <div class="row between center" style="margin-bottom:10px;">
+	          <h2 style="margin:0;">Notification journal</h2>
+	          <button id="clearNotifyJournalBtn" class="btn danger">Journal leeren</button>
+	        </div>
+	        <pre id="notifyJournal" class="output"></pre>
+	      </section>
+	
+	      <section class="card">
+	        <div class="row between center" style="margin-bottom:10px;">
+	          <h2 style="margin:0;">Events</h2>
+	          <button id="clearEventsBtn" class="btn danger">Events leeren</button>
+	        </div>
+	        <pre id="events" class="output"></pre>
+	      </section>
     </div>
 
     <div id="infoModal" class="modal hidden" aria-hidden="true">
@@ -112,13 +115,13 @@
             <li>Pro Runner-Zuordnung: <code>Aktiv</code> und optional <code>Only updates</code> (nur Statuswechsel statt Dauerwiederholung).</li>
             <li>Zugangsdaten werden im Backend verschlüsselt gespeichert (at rest) und im API-State nur maskiert ausgeliefert.</li>
           </ul>
-          <h3>6) Output, Logs, Journal</h3>
-          <ul>
-            <li>Live-Output pro Runner inkl. <code>Copy</code>-Button.</li>
-            <li>Logdatei pro Runner: Logging an/aus, öffnen, leeren. Leere Datei wird bei Bedarf automatisch erzeugt.</li>
-            <li>Notification-Journal listet Versandhistorie inkl. Fehlerursachen; kann zentral geleert werden.</li>
-            <li>Events-Fenster zeigt Live-Aktionen und Statusänderungen aus dem Event-Stream.</li>
-          </ul>
+	          <h3>6) Output, Logs, Journal</h3>
+	          <ul>
+	            <li>Live-Output pro Runner inkl. <code>Copy</code>-Button.</li>
+	            <li>Logdatei pro Runner: Logging an/aus, öffnen, leeren. Leere Datei wird bei Bedarf automatisch erzeugt.</li>
+	            <li>Notification-Journal listet Versandhistorie inkl. Fehlerursachen; kann zentral geleert werden.</li>
+	            <li>Events-Fenster zeigt Live-Aktionen und Statusänderungen aus dem Event-Stream; kann geleert werden.</li>
+	          </ul>
 	          <h3>7) Speichern, Validierung, Import/Export</h3>
 	          <ul>
 	            <li>Speichern-Button wird bei Änderungen markiert (dirty).</li>
