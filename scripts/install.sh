@@ -124,7 +124,8 @@ configure_auth_for_fresh_install() {
 
   local choice=""
   while true; do
-    choice="$(prompt_from_tty "Enable HTTP Basic auth for Web UI/API?" "Y")"
+    read -r -p "Enable HTTP Basic auth for Web UI/API? (y/n, default: y): " choice < /dev/tty
+    choice="${choice:-y}"
     choice="$(printf "%s" "${choice}" | tr '[:upper:]' '[:lower:]')"
     case "${choice}" in
       y|yes)
