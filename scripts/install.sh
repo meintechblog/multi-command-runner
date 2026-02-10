@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SCRIPT_VERSION="1.1.1"
+SCRIPT_VERSION="1.1.2"
 
 REPO_URL="${REPO_URL:-https://github.com/meintechblog/command-runner.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
@@ -45,6 +45,10 @@ run_as_app() {
   else
     runuser -u "${APP_USER}" -- bash -lc "${cmd}"
   fi
+}
+
+url_encode() {
+  python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"
 }
 
 upsert_env() {
@@ -278,6 +282,18 @@ if [[ "${ENABLE_BASIC_AUTH}" == "1" && -n "${effective_auth_user}" ]]; then
     echo "IMPORTANT: Save this password now. It is only shown once."
   else
     echo "Password: existing value from ${ENV_FILE} is used."
+  fi
+  if [[ -n "${effective_auth_password}" ]]; then
+    encoded_auth_user="$(url_encode "${effective_auth_user}")"
+    encoded_auth_password="$(url_encode "${effective_auth_password}")"
+    echo "Direct login URL (copy/paste):"
+    echo "  -> http://${encoded_auth_user}:${encoded_auth_password}@127.0.0.1:${PORT_BIND}/"
+    if [[ ${#lan_urls[@]} -gt 0 ]]; then
+      for url in "${lan_urls[@]}"; do
+        lan_host_port="${url#http://}"
+        echo "  -> http://${encoded_auth_user}:${encoded_auth_password}@${lan_host_port}/"
+      done
+    fi
   fi
   echo "------------------------------------------------------------"
 fi
