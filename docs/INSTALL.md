@@ -51,6 +51,12 @@ What this installer does automatically:
 You can re-run the same one-liner later to apply updates from GitHub.
 If the installer creates a new Basic-auth password, it is printed once at the end.
 
+Browser auth note (important):
+
+- Recommended: open the plain UI URL (for example `http://<LAN-IP>:8080`) and use the browser login prompt.
+- Optional shortcut: `http://USER:PASSWORD@<LAN-IP>:8080/`
+- Browser behavior differs by vendor: some open directly, others ignore URL credentials and still show the login prompt.
+
 Optional overrides (example):
 
 ```bash

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SCRIPT_VERSION="1.1.2"
+SCRIPT_VERSION="1.1.3"
 
 REPO_URL="${REPO_URL:-https://github.com/meintechblog/command-runner.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
@@ -283,10 +283,14 @@ if [[ "${ENABLE_BASIC_AUTH}" == "1" && -n "${effective_auth_user}" ]]; then
   else
     echo "Password: existing value from ${ENV_FILE} is used."
   fi
+  echo "Recommended login flow (works across browsers):"
+  echo "  1) Open one of the UI URLs above (without credentials in URL)"
+  echo "  2) Enter username/password in the browser auth prompt"
   if [[ -n "${effective_auth_password}" ]]; then
     encoded_auth_user="$(url_encode "${effective_auth_user}")"
     encoded_auth_password="$(url_encode "${effective_auth_password}")"
-    echo "Direct login URL (copy/paste):"
+    echo "Direct login URL (optional, browser-dependent):"
+    echo "  Some browsers open directly, others ignore URL credentials and show the auth prompt."
     echo "  -> http://${encoded_auth_user}:${encoded_auth_password}@127.0.0.1:${PORT_BIND}/"
     if [[ ${#lan_urls[@]} -gt 0 ]]; then
       for url in "${lan_urls[@]}"; do
