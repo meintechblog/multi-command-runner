@@ -1251,7 +1251,7 @@ function renderRunners() {
   wrap.querySelectorAll(`[data-openlog]`).forEach((btn) => {
     btn.addEventListener("click", () => {
       const rid = btn.getAttribute("data-openlog");
-      window.open(`/api/log/${encodeURIComponent(rid)}`, "_blank");
+      window.open(apiUrl(`/api/log/${encodeURIComponent(rid)}`), "_blank");
     });
   });
 
@@ -1261,7 +1261,7 @@ function renderRunners() {
       if (!confirm("Log-Datei wirklich leeren?")) return;
 
       try {
-        await fetch(`/api/log/${encodeURIComponent(rid)}`, { method: "DELETE" });
+        await apiFetch(`/api/log/${encodeURIComponent(rid)}`, { method: "DELETE" });
         logHulk("success", `LOG FUER ${rid} GELEERT.`);
         hulkFlash("success", `LOG GELEERT FUER ${rid}.`, 3200);
       } catch (e) {
@@ -1486,14 +1486,22 @@ function setInfoModalOpen(open) {
   document.body.classList.toggle("modalOpen", isOpen);
 }
 
+function apiUrl(url) {
+  return new URL(url, window.location.origin).toString();
+}
+
+async function apiFetch(url, options) {
+  return fetch(apiUrl(url), options);
+}
+
 async function apiGet(url) {
-  const r = await fetch(url, { headers: { "Accept": "application/json" } });
+  const r = await apiFetch(url, { headers: { "Accept": "application/json" } });
   if (!r.ok) throw new Error(await r.text());
   return await r.json();
 }
 
 async function apiPost(url, body) {
-  const r = await fetch(url, {
+  const r = await apiFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Accept": "application/json" },
     body: JSON.stringify(body ?? {}),
@@ -1563,7 +1571,7 @@ function delayedStatusUpdate(rid, updateFn, minSpinnerMs = 500) {
 }
 
 function startEvents() {
-  const es = new EventSource("/api/events");
+  const es = new EventSource(apiUrl("/api/events"));
   es.onmessage = (msg) => {
     try {
       const ev = JSON.parse(msg.data);
@@ -1760,7 +1768,7 @@ async function wireUI() {
   el("clearNotifyJournalBtn")?.addEventListener("click", async () => {
     if (!confirm("Notification-Journal wirklich leeren?")) return;
     try {
-      await fetch("/api/notifications", { method: "DELETE" });
+      await apiFetch("/api/notifications", { method: "DELETE" });
       ui.notifyJournalEntries = [];
       renderNotifyJournal();
       hulkFlash("success", "NOTIFICATION-JOURNAL GELEERT.", 2600);
@@ -1815,7 +1823,7 @@ async function wireUI() {
     hulkFlash("info", "EXPORT WIRD GESTARTET...", 2800);
     try {
       const a = document.createElement("a");
-      a.href = "/api/export";
+      a.href = apiUrl("/api/export");
       a.download = `command-runner-export-${new Date().toISOString().slice(0, 19).replace(/:/g, "")}.json`;
       document.body.appendChild(a);
       a.click();
@@ -1840,7 +1848,7 @@ async function wireUI() {
     hulkFlash("info", `IMPORT LAEUFT: ${file.name}`, 2800);
     try {
       const text = await file.text();
-      const res = await fetch("/api/import", {
+      const res = await apiFetch("/api/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: text,
