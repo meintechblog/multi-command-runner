@@ -1137,14 +1137,13 @@ function renderRunners() {
     div.dataset.runnerId = r.id;
     div.innerHTML = `
       <div class="runnerHead">
-        <div class="runnerIdentity">
+          <div class="runnerIdentity">
           <div class="runnerTitleRow">
             <span class="toggle" data-toggle="${r.id}">${r._collapsed ? "+" : "-"}</span>
             <input data-name="${r.id}" value="${escapeHtml(r.name)}" placeholder="Runner Name" />
+            <span class="pill runnerElapsed ${showElapsed ? "" : "hidden"}" data-runner-elapsed="${r.id}">${showElapsed ? `⏱ ${escapeHtml(elapsedText)}` : ""}</span>
           </div>
           <div class="runnerState">
-            <div class="spinner ${isActive ? "" : "hidden"}" data-spinner="${r.id}"></div>
-            <span class="pill runnerElapsed ${showElapsed ? "" : "hidden"}" data-runner-elapsed="${r.id}">${showElapsed ? `⏱ ${escapeHtml(elapsedText)}` : ""}</span>
             <span class="small runnerStateText">${escapeHtml(runnerStateText)}</span>
           </div>
         </div>
