@@ -205,6 +205,22 @@ def _new_id(prefix: str) -> str:
     return f"{prefix}{uuid.uuid4().hex}"
 
 
+def _next_clone_name(base_name: str, existing_names: Iterable[str], fallback: str) -> str:
+    base = str(base_name or "").strip() or fallback
+    existing = {str(name or "").strip().casefold() for name in existing_names}
+
+    first = f"{base} (Kopie)"
+    if first.casefold() not in existing:
+        return first
+
+    i = 2
+    while True:
+        candidate = f"{base} (Kopie {i})"
+        if candidate.casefold() not in existing:
+            return candidate
+        i += 1
+
+
 def _safe_runner_id(runner_id: str) -> str:
     rid = re.sub(r"[^a-zA-Z0-9_-]+", "_", runner_id).strip("_")
     return rid or "runner"
@@ -425,6 +441,18 @@ class RunRequest(BaseModel):
 
 
 class StopRequest(BaseModel):
+    runner_id: str
+
+    @field_validator("runner_id")
+    @classmethod
+    def validate_runner_id(cls, value: str) -> str:
+        s = str(value or "").strip()
+        if not _valid_safe_id(s):
+            raise ValueError("Invalid runner id format")
+        return s
+
+
+class CloneRunnerRequest(BaseModel):
     runner_id: str
 
     @field_validator("runner_id")
@@ -1660,7 +1688,7 @@ broker = EventBroker()
 notifier = NotificationWorker(broker, store)
 rm = RunnerManager(broker, notifier)
 
-app = FastAPI(title="command-runner", version="2.1.0")
+app = FastAPI(title="command-runner", version="2.1.1")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
@@ -1847,6 +1875,46 @@ def pushover_test(req: PushoverTestRequest) -> JSONResponse:
                 }
             )
         return JSONResponse({"ok": False, "error": err}, status_code=400)
+
+
+@app.post("/api/clone_runner", response_class=JSONResponse)
+def clone_runner(req: CloneRunnerRequest) -> JSONResponse:
+    state_data = store.load()
+    runners = state_data.get("runners", [])
+    if not isinstance(runners, list):
+        runners = []
+
+    source_index = -1
+    for idx, runner in enumerate(runners):
+        if str((runner or {}).get("id", "")).strip() == req.runner_id:
+            source_index = idx
+            break
+    if source_index < 0:
+        raise HTTPException(status_code=404, detail="Runner not found")
+
+    source = runners[source_index] if isinstance(runners[source_index], dict) else {}
+    clone = json.loads(json.dumps(source, ensure_ascii=False))
+    clone["id"] = _new_id("runner_")
+    clone["name"] = _next_clone_name(
+        str(source.get("name", "Runner") or "Runner"),
+        [str((r or {}).get("name", "") or "") for r in runners if isinstance(r, dict)],
+        "Runner",
+    )
+
+    cases = clone.get("cases", [])
+    if isinstance(cases, list):
+        for case in cases:
+            if isinstance(case, dict):
+                case["id"] = _new_id("case_")
+    clone["cases"] = cases if isinstance(cases, list) else []
+
+    runners.insert(source_index + 1, clone)
+    state_data["runners"] = runners
+    store.save(state_data)
+    current = AppState.model_validate(store.load())
+    ensure_logs_for_runners(current.runners)
+    rm.refresh_runtime_configs(current)
+    return JSONResponse({"ok": True, "cloned_id": clone["id"], "cloned_name": clone["name"]})
 
 
 @app.get("/api/log/{runner_id}", response_class=PlainTextResponse)

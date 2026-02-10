@@ -271,7 +271,7 @@ function isNotifySaveBlocked(np) {
 
 function computeNotifyProfileSignature(np) {
   return JSON.stringify({
-    name: np?.name ?? "",
+    name: String(np?.name ?? ""),
     type: np?.type ?? "pushover",
     active: !!np?.active,
     config: {
@@ -294,6 +294,14 @@ function refreshNotifyDirtyState(npid) {
   const np = state.notify_profiles.find((x) => x.id === npid);
   if (!np) {
     ui.dirtyNotifyProfiles.delete(npid);
+    const missingCard = document.querySelector(`.notifyProfile[data-notify-id="${npid}"]`);
+    if (missingCard) {
+      missingCard.classList.remove("is-dirty");
+    }
+    const missingNameInput = document.querySelector(`[data-npname="${npid}"]`);
+    if (missingNameInput) {
+      missingNameInput.classList.remove("is-dirty");
+    }
     return;
   }
   const currentSig = computeNotifyProfileSignature(np);
@@ -303,12 +311,30 @@ function refreshNotifyDirtyState(npid) {
   } else {
     ui.dirtyNotifyProfiles.delete(npid);
   }
+  const card = document.querySelector(`.notifyProfile[data-notify-id="${npid}"]`);
+  const nameInput = document.querySelector(`[data-npname="${npid}"]`);
+  const isSaveableDirty = ui.dirtyNotifyProfiles.has(npid) && !isNotifySaveBlocked(np);
+  if (card) {
+    card.classList.toggle("is-dirty", isSaveableDirty);
+  }
+  if (nameInput) {
+    nameInput.classList.toggle("is-dirty", isSaveableDirty);
+  }
 }
 
 function syncNotifyDirtyButton(npid) {
+  const np = state.notify_profiles.find((x) => x.id === npid);
+  const isSaveableDirty = !!np && ui.dirtyNotifyProfiles.has(npid) && !isNotifySaveBlocked(np);
+  const card = document.querySelector(`.notifyProfile[data-notify-id="${npid}"]`);
+  const nameInput = document.querySelector(`[data-npname="${npid}"]`);
+  if (card) {
+    card.classList.toggle("is-dirty", isSaveableDirty);
+  }
+  if (nameInput) {
+    nameInput.classList.toggle("is-dirty", isSaveableDirty);
+  }
   const btn = document.querySelector(`[data-save-npname="${npid}"]`);
   if (!btn) return;
-  const np = state.notify_profiles.find((x) => x.id === npid);
   btn.classList.toggle("invalid", isNotifySaveBlocked(np));
   btn.classList.toggle("dirty", ui.dirtyNotifyProfiles.has(npid));
 }
@@ -368,7 +394,7 @@ function computeRunnerSignature(r) {
   const notifyIds = Array.isArray(r?.notify_profile_ids) ? [...r.notify_profile_ids].sort() : [];
   const updatesOnlyIds = Array.isArray(r?.notify_profile_updates_only) ? [...r.notify_profile_updates_only].sort() : [];
   return JSON.stringify({
-    name: r?.name ?? "",
+    name: String(r?.name ?? ""),
     command: r?.command ?? "",
     logging_enabled: !!r?.logging_enabled,
     schedule: {
@@ -404,6 +430,14 @@ function refreshRunnerDirtyState(rid) {
   const r = state.runners.find((x) => x.id === rid);
   if (!r) {
     ui.dirtyRunners.delete(rid);
+    const missingCard = document.querySelector(`.runner[data-runner-id="${rid}"]`);
+    if (missingCard) {
+      missingCard.classList.remove("is-dirty");
+    }
+    const missingNameInput = document.querySelector(`[data-name="${rid}"]`);
+    if (missingNameInput) {
+      missingNameInput.classList.remove("is-dirty");
+    }
     return;
   }
   const currentSig = computeRunnerSignature(r);
@@ -413,12 +447,30 @@ function refreshRunnerDirtyState(rid) {
   } else {
     ui.dirtyRunners.delete(rid);
   }
+  const card = document.querySelector(`.runner[data-runner-id="${rid}"]`);
+  const nameInput = document.querySelector(`[data-name="${rid}"]`);
+  const isSaveableDirty = ui.dirtyRunners.has(rid) && !isRunnerSaveBlocked(r);
+  if (card) {
+    card.classList.toggle("is-dirty", isSaveableDirty);
+  }
+  if (nameInput) {
+    nameInput.classList.toggle("is-dirty", isSaveableDirty);
+  }
 }
 
 function syncRunnerDirtyButton(rid) {
+  const r = state.runners.find((x) => x.id === rid);
+  const isSaveableDirty = !!r && ui.dirtyRunners.has(rid) && !isRunnerSaveBlocked(r);
+  const card = document.querySelector(`.runner[data-runner-id="${rid}"]`);
+  const nameInput = document.querySelector(`[data-name="${rid}"]`);
+  if (card) {
+    card.classList.toggle("is-dirty", isSaveableDirty);
+  }
+  if (nameInput) {
+    nameInput.classList.toggle("is-dirty", isSaveableDirty);
+  }
   const btn = document.querySelector(`[data-save-name="${rid}"]`);
   if (!btn) return;
-  const r = state.runners.find((x) => x.id === rid);
   btn.classList.toggle("invalid", isRunnerSaveBlocked(r));
   btn.classList.toggle("dirty", ui.dirtyRunners.has(rid));
 }
@@ -468,6 +520,13 @@ function notifyProfileValidationError(np) {
     if ((np.config?.api_token || "").trim() === "") return "API Token fehlt.";
   }
   return "";
+}
+
+function hasUnsavedLocalChanges() {
+  if (ui.dirtyNotifyProfiles.size > 0 || ui.dirtyRunners.size > 0) return true;
+  if (state.notify_profiles.some((np) => !!np?._isNew)) return true;
+  if (state.runners.some((r) => !!r?._isNew)) return true;
+  return false;
 }
 
 function validateStateBeforePersist() {
@@ -696,6 +755,7 @@ function renderNotifyProfiles() {
   state.notify_profiles.forEach((np, idx) => {
     const isDirty = ui.dirtyNotifyProfiles.has(np.id);
     const saveBlocked = isNotifySaveBlocked(np);
+    const isSaveableDirty = isDirty && !saveBlocked;
     const isActive = np.active !== false;
     const failCount = Math.max(0, Number(np.failure_count || 0));
     const sentCount = Math.max(0, Number(np.sent_count || 0));
@@ -708,7 +768,7 @@ function renderNotifyProfiles() {
         : `Aktiv: OK. Gesendet: ${sentCount}.`);
     const notifyStatusKind = !isActive ? "error" : (failCount >= 2 ? "warn" : (failCount > 0 ? "info" : "ok"));
     const div = document.createElement("div");
-    div.className = "notifyProfile";
+    div.className = `notifyProfile${isSaveableDirty ? " is-dirty" : ""}`;
     div.dataset.notifyId = np.id;
     div.innerHTML = `
       <div class="notifyHead">
@@ -720,20 +780,18 @@ function renderNotifyProfiles() {
           </div>
           <span class="small notifyStateText ${notifyStatusKind}" title="${escapeHtml(notifyStatusText)}">${escapeHtml(notifyStatusText)}</span>
         </div>
-        <div class="row gap center">
+        <div class="row gap center wrapline notifyActions">
           <div class="row gap center reorderControls ${ui.notifySortMode ? "" : "hidden"}">
             <button class="btn" data-move-np-up="${np.id}" ${idx === 0 ? "disabled" : ""} title="Nach oben">↑</button>
             <button class="btn" data-move-np-down="${np.id}" ${idx === state.notify_profiles.length - 1 ? "disabled" : ""} title="Nach unten">↓</button>
           </div>
           <button class="btn ${isActive ? "primary" : "danger"}" data-toggle-npactive="${np.id}" title="${isActive ? "Service aktiv (klicken zum Deaktivieren)" : "Service inaktiv (klicken zum Aktivieren)"}">${isActive ? "Aktiv" : "Inaktiv"}</button>
           <button class="btn" data-test-notify="${np.id}" ${isActive ? "" : "disabled title=\"Service ist inaktiv\""}>Test</button>
+          <button class="btn primary notifySaveBtn ${isDirty ? "dirty" : ""} ${saveBlocked ? "invalid" : ""}" data-save-npname="${np.id}">💾 Speichern</button>
           <button class="btn danger" data-del-notify="${np.id}">Remove</button>
         </div>
       </div>
       <div class="notifyBody ${np._collapsed ? "hidden" : ""}" data-nbody="${np.id}">
-        <div style="margin-bottom:12px;">
-          <button class="btn primary notifySaveBtn ${isDirty ? "dirty" : ""} ${saveBlocked ? "invalid" : ""}" data-save-npname="${np.id}">💾 Speichern</button>
-        </div>
         <div class="grid2">
           <label>
             <span>User Key</span>
@@ -972,6 +1030,7 @@ function renderRunners() {
   wrap.innerHTML = "";
   renderRunnerSection();
   refreshAllRunnerDirtyStates();
+  const cloneBlockedByUnsaved = hasUnsavedLocalChanges();
 
   state.runners.forEach((r, idx) => {
     const rt = runtime.status[r.id] || {};
@@ -1007,10 +1066,13 @@ function renderRunners() {
     const runnerStateText = `${statusPrefix}${runnerStateParts.join(" | ")}`.trim();
     const isDirty = ui.dirtyRunners.has(r.id);
     const saveBlocked = isRunnerSaveBlocked(r);
+    const isSaveableDirty = isDirty && !saveBlocked;
+    const canClone = !cloneBlockedByUnsaved && !r._isNew && !isDirty && !saveBlocked;
+    const cloneDisabledAttr = canClone ? "" : "disabled title=\"Nur im gespeicherten Zustand clonbar. Erst speichern.\"";
     const runDisabled = !isActive && isRunnerCommandMissing(r);
 
     const div = document.createElement("div");
-    div.className = "runner";
+    div.className = `runner${isSaveableDirty ? " is-dirty" : ""}`;
     div.dataset.runnerId = r.id;
     div.innerHTML = `
       <div class="runnerHead">
@@ -1032,15 +1094,13 @@ function renderRunners() {
           <button class="btn ${isActive ? "danger" : "primary"}" data-runstop="${r.id}" ${runDisabled ? "disabled title=\"Command fehlt: Bitte zuerst Command eintragen.\"" : ""}>
             ${isActive ? "■ Stop" : "▶ Run"}
           </button>
+          <button class="btn primary runnerSaveBtn ${isDirty ? "dirty" : ""} ${saveBlocked ? "invalid" : ""}" data-save-name="${r.id}">💾 Speichern</button>
+          <button class="btn" data-clone-runner="${r.id}" ${cloneDisabledAttr}>Clone</button>
           <button class="btn danger" data-delrunner="${r.id}">Remove</button>
         </div>
       </div>
 
       <div class="runnerBody ${r._collapsed ? "hidden" : ""}" data-body="${r.id}">
-        <div class="runnerSaveRow">
-          <button class="btn primary runnerSaveBtn ${isDirty ? "dirty" : ""} ${saveBlocked ? "invalid" : ""}" data-save-name="${r.id}">💾 Speichern</button>
-        </div>
-
         <div class="runnerConfigGrid">
           <label class="runnerCommandBlock">
             <span>Command (bash -lc)</span>
@@ -1470,6 +1530,36 @@ function renderRunners() {
     });
   });
 
+  wrap.querySelectorAll(`[data-clone-runner]`).forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const rid = btn.getAttribute("data-clone-runner");
+      const r = state.runners.find((x) => x.id === rid);
+      if (!r) return;
+
+      if (hasUnsavedLocalChanges() || !!r._isNew || ui.dirtyRunners.has(rid) || isRunnerSaveBlocked(r)) {
+        const msg = "CLONE BLOCKIERT: BITTE ZUERST ALLE AENDERUNGEN SPEICHERN.";
+        hulkFlash("info", msg, 4200);
+        logHulk("info", msg);
+        renderRunners();
+        renderNotifyProfiles();
+        return;
+      }
+
+      try {
+        const res = await apiPost("/api/clone_runner", { runner_id: rid });
+        const st = await apiGet("/api/state");
+        setFromState(st);
+        const sourceName = r.name || rid;
+        const targetName = res?.cloned_name ? ` -> "${res.cloned_name}"` : "";
+        hulkFlash("success", `RUNNER "${sourceName}" GEKLONT${targetName}.`, 3600);
+        logHulk("success", `RUNNER "${sourceName}" GEKLONT${targetName}.`);
+      } catch (e) {
+        hulkFlash("error", `CLONE FEHLGESCHLAGEN: ${e.message}`);
+        logHulk("error", `RUNNER-CLONE FEHLGESCHLAGEN: ${e.message}`);
+      }
+    });
+  });
+
 }
 
 function setInfoModalOpen(open) {
@@ -1808,9 +1898,10 @@ async function wireUI() {
     hulkFlash("info", "NEUER NOTIFICATION-DIENST ERSTELLT. PFLICHTFELDER AUSFUELLEN UND SPEICHERN.", 4500);
   });
 
-  el("addRunnerBtn").addEventListener("click", () => {
+  el("addRunnerBtn").addEventListener("click", async () => {
+    const rid = `runner_${uuidFallback()}`;
     state.runners.push({
-      id: `runner_${uuidFallback()}`,
+      id: rid,
       name: "New Runner",
       command: "",
       logging_enabled: true,
@@ -1823,10 +1914,15 @@ async function wireUI() {
       notify_profile_updates_only: [],
       cases: [],
       _collapsed: false,
-      _isNew: true,
+      // Runner can be persisted without a command; it just cannot be started until a command is set.
+      _isNew: false,
     });
     renderRunners();
-    hulkFlash("success", "NEUER RUNNER ERSTELLT.", 3000);
+    const saved = await autoSave();
+    if (saved) {
+      hulkFlash("success", "NEUER RUNNER ERSTELLT UND GESPEICHERT.", 3200);
+      logHulk("success", `RUNNER ${rid} ERSTELLT UND GESPEICHERT.`);
+    }
   });
 
   el("exportBtn").addEventListener("click", async () => {

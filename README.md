@@ -53,6 +53,7 @@ More installation details (including Proxmox LXC setup and sudo-safe install flo
 ## What It Does
 
 - Manage multiple runners (name, command, schedule, cases, notifications)
+- Clone a saved runner (creates a stored copy directly below the source)
 - Run commands manually or on interval after each run finishes
 - Stream live output via Server-Sent Events (SSE)
 - Detect regex-based cases and trigger notifications
@@ -134,6 +135,7 @@ HOST=0.0.0.0 PORT=8080 DATA_DIR=/opt/command-runner/data python -m app.main
 
 - `GET /api/state` - load current app state
 - `POST /api/state` - save app state
+- `POST /api/clone_runner` - clone a runner (saved copy inserted below the source)
 - `POST /api/run` - start a runner
 - `POST /api/stop` - stop a runner
 - `GET /api/events` - SSE event stream
