@@ -71,6 +71,36 @@ Disable automatic Basic-auth bootstrap (not recommended):
 curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/install.sh | ENABLE_BASIC_AUTH=0 bash
 ```
 
+## Automated Uninstall
+
+Safe default uninstall:
+
+- removes `command-runner.service` (if present)
+- removes install directory (`/opt/command-runner` by default)
+- keeps data directory and service account unless you opt in
+
+Run as `root` inside the container:
+
+```bash
+apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/uninstall.sh | bash
+```
+
+Non-interactive full purge:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/uninstall.sh | REMOVE_DATA=1 REMOVE_SYSTEM_ACCOUNT=1 FORCE=1 bash
+```
+
+Optional uninstall variables:
+
+- `SERVICE_NAME` (default: `command-runner`)
+- `INSTALL_DIR` (default: `/opt/command-runner`)
+- `DATA_DIR` (default: from `.env` or `/opt/command-runner/data`)
+- `REMOVE_INSTALL_DIR` (`1`/`0`, default: `1`)
+- `REMOVE_DATA` (`1`/`0`, default: `0`)
+- `REMOVE_SYSTEM_ACCOUNT` (`1`/`0`, default: `0`)
+- `FORCE` (`1`/`0`, default: `0`; skip interactive confirmation)
+
 ## 0) Proxmox LXC (Recommended Homelab Setup)
 
 If you run `command-runner` on Proxmox, an unprivileged Debian 12 LXC is a good default.

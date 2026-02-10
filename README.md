@@ -17,6 +17,20 @@ On updates, existing auth state is kept (disabled stays disabled, enabled stays 
 If auth is enabled and no password exists, a secure password is generated and shown once.
 You can disable auth bootstrap explicitly with `ENABLE_BASIC_AUTH=0` (not recommended).
 
+## Quick Uninstall
+
+Safe default uninstall (removes service + app directory, keeps data and service account):
+
+```bash
+apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/uninstall.sh | bash
+```
+
+Full purge (also remove data and service account, non-interactive):
+
+```bash
+apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/uninstall.sh | REMOVE_DATA=1 REMOVE_SYSTEM_ACCOUNT=1 FORCE=1 bash
+```
+
 ## System Requirements (Short)
 
 - Debian/Ubuntu Linux with `systemd` and `apt`
