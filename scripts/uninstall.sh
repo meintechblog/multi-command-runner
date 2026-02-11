@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SCRIPT_VERSION="1.0.0"
+SCRIPT_VERSION="1.1.0"
 
-SERVICE_NAME="${SERVICE_NAME:-command-runner}"
-INSTALL_DIR="${INSTALL_DIR:-/opt/command-runner}"
+SERVICE_NAME="${SERVICE_NAME:-multi-command-runner}"
+INSTALL_DIR="${INSTALL_DIR:-/opt/multi-command-runner}"
 ENV_FILE="${ENV_FILE:-${INSTALL_DIR}/.env}"
 DATA_DIR="${DATA_DIR:-}"
-APP_USER="${APP_USER:-command-runner}"
-APP_GROUP="${APP_GROUP:-command-runner}"
+APP_USER="${APP_USER:-multi-command-runner}"
+APP_GROUP="${APP_GROUP:-multi-command-runner}"
 
 REMOVE_INSTALL_DIR_WAS_SET="${REMOVE_INSTALL_DIR+x}"
 REMOVE_DATA_WAS_SET="${REMOVE_DATA+x}"
@@ -229,7 +229,7 @@ REMOVE_DATA="$(parse_bool "REMOVE_DATA" "${REMOVE_DATA}")"
 REMOVE_SYSTEM_ACCOUNT="$(parse_bool "REMOVE_SYSTEM_ACCOUNT" "${REMOVE_SYSTEM_ACCOUNT}")"
 FORCE="$(parse_bool "FORCE" "${FORCE}")"
 
-log "command-runner uninstaller ${SCRIPT_VERSION} started."
+log "multi-command-runner uninstaller ${SCRIPT_VERSION} started."
 resolve_data_dir
 configure_options
 
@@ -250,7 +250,7 @@ remove_service_account_if_requested
 
 echo
 echo "============================================================"
-echo "command-runner uninstall completed."
+echo "multi-command-runner uninstall completed."
 echo "Service: ${SERVICE_NAME}.service removed (if present)."
 if [[ "${REMOVE_INSTALL_DIR}" == "1" ]]; then
   echo "Install directory removed: ${INSTALL_DIR}"

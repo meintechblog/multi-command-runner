@@ -6,6 +6,22 @@ All notable changes to this project will be documented in this file.
 
 - Pending
 
+## [2.2.0] - 2026-02-11
+
+### Changed
+
+- Project/product naming was fully updated from `command-runner` to `multi-command-runner`.
+- GitHub repository references now point to `meintechblog/multi-command-runner`.
+- Installer/uninstaller defaults were renamed:
+  - service: `multi-command-runner`
+  - install dir: `/opt/multi-command-runner`
+  - runtime user/group: `multi-command-runner`
+- Environment variable names were renamed to:
+  - `MULTI_COMMAND_RUNNER_SECRET_KEY`
+  - `MULTI_COMMAND_RUNNER_AUTH_USER`
+  - `MULTI_COMMAND_RUNNER_AUTH_PASSWORD`
+- UI title and export filenames now use `multi-command-runner`.
+
 ## [2.1.10] - 2026-02-10
 
 ### Changed

@@ -1,4 +1,4 @@
-# command-runner
+# multi-command-runner
 
 Web UI for running and monitoring shell commands as reusable runners.
 
@@ -7,7 +7,7 @@ Web UI for running and monitoring shell commands as reusable runners.
 Run inside the target Debian/Ubuntu container as `root`:
 
 ```bash
-apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/install.sh | bash
+apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/install.sh | bash
 ```
 
 Re-running the same command also works as an update path (pull latest code + restart service).
@@ -22,13 +22,13 @@ You can disable auth bootstrap explicitly with `ENABLE_BASIC_AUTH=0` (not recomm
 Safe default uninstall (removes service + app directory, keeps data and service account):
 
 ```bash
-apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/uninstall.sh | bash
+apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/uninstall.sh | bash
 ```
 
 Full purge (also remove data and service account, non-interactive):
 
 ```bash
-apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/uninstall.sh | REMOVE_DATA=1 REMOVE_SYSTEM_ACCOUNT=1 FORCE=1 bash
+apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/uninstall.sh | REMOVE_DATA=1 REMOVE_SYSTEM_ACCOUNT=1 FORCE=1 bash
 ```
 
 ## System Requirements (Short)
@@ -74,7 +74,7 @@ More installation details (including Proxmox LXC setup and sudo-safe install flo
 
 This app executes arbitrary shell commands (`bash -lc ...`) from the web UI.
 Run it only in trusted/private environments and never expose it publicly without strong access controls.
-Use Basic auth (`COMMAND_RUNNER_AUTH_USER` / `COMMAND_RUNNER_AUTH_PASSWORD`) and network restrictions.
+Use Basic auth (`MULTI_COMMAND_RUNNER_AUTH_USER` / `MULTI_COMMAND_RUNNER_AUTH_PASSWORD`) and network restrictions.
 
 ## Requirements (Manual Run / Dev)
 
@@ -101,13 +101,13 @@ Environment variables:
 - `HOST` (default: `127.0.0.1`)
 - `PORT` (default: `8080`)
 - `DATA_DIR` (default: `./data`)
-- `COMMAND_RUNNER_SECRET_KEY` (optional encryption key override)
-- `COMMAND_RUNNER_AUTH_USER` + `COMMAND_RUNNER_AUTH_PASSWORD` (enable HTTP Basic auth when both are set)
+- `MULTI_COMMAND_RUNNER_SECRET_KEY` (optional encryption key override)
+- `MULTI_COMMAND_RUNNER_AUTH_USER` + `MULTI_COMMAND_RUNNER_AUTH_PASSWORD` (enable HTTP Basic auth when both are set)
 
 Example:
 
 ```bash
-HOST=0.0.0.0 PORT=8080 DATA_DIR=/opt/command-runner/data python -m app.main
+HOST=0.0.0.0 PORT=8080 DATA_DIR=/opt/multi-command-runner/data python -m app.main
 ```
 
 ## Data & Persistence
@@ -117,7 +117,7 @@ HOST=0.0.0.0 PORT=8080 DATA_DIR=/opt/command-runner/data python -m app.main
 - Runner logs are written as `data/run_<runner_id>.log`
 - Notification credentials are stored encrypted at rest (Fernet, `enc:v1:` format)
 - Encryption key source:
-  - `COMMAND_RUNNER_SECRET_KEY` env var (recommended)
+  - `MULTI_COMMAND_RUNNER_SECRET_KEY` env var (recommended)
   - fallback: auto-generated `data/.credentials.key`
 
 ## Credential Handling

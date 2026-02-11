@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SCRIPT_VERSION="1.1.5"
+SCRIPT_VERSION="1.2.0"
 
-REPO_URL="${REPO_URL:-https://github.com/meintechblog/command-runner.git}"
+REPO_URL="${REPO_URL:-https://github.com/meintechblog/multi-command-runner.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
-INSTALL_DIR="${INSTALL_DIR:-/opt/command-runner}"
-SERVICE_NAME="${SERVICE_NAME:-command-runner}"
-APP_USER="${APP_USER:-command-runner}"
-APP_GROUP="${APP_GROUP:-command-runner}"
+INSTALL_DIR="${INSTALL_DIR:-/opt/multi-command-runner}"
+SERVICE_NAME="${SERVICE_NAME:-multi-command-runner}"
+APP_USER="${APP_USER:-multi-command-runner}"
+APP_GROUP="${APP_GROUP:-multi-command-runner}"
 HOST_BIND="${HOST_BIND:-0.0.0.0}"
 PORT_BIND="${PORT_BIND:-8080}"
 DATA_DIR="${DATA_DIR:-${INSTALL_DIR}/data}"
@@ -170,7 +170,7 @@ if [[ "${EUID}" -ne 0 ]]; then
   fail "Please run as root. Example: curl -fsSL <installer-url> | sudo bash"
 fi
 
-log "command-runner installer ${SCRIPT_VERSION} started."
+log "multi-command-runner installer ${SCRIPT_VERSION} started."
 
 if [[ "${RUN_AS_ROOT}" == "1" ]]; then
   APP_USER="root"
@@ -238,14 +238,14 @@ upsert_env "HOST" "${HOST_BIND}" "${ENV_FILE}"
 upsert_env "PORT" "${PORT_BIND}" "${ENV_FILE}"
 upsert_env "DATA_DIR" "${DATA_DIR}" "${ENV_FILE}"
 
-if ! grep -qE "^[[:space:]]*COMMAND_RUNNER_SECRET_KEY=" "${ENV_FILE}"; then
-  log "Generating COMMAND_RUNNER_SECRET_KEY..."
+if ! grep -qE "^[[:space:]]*MULTI_COMMAND_RUNNER_SECRET_KEY=" "${ENV_FILE}"; then
+  log "Generating MULTI_COMMAND_RUNNER_SECRET_KEY..."
   secret_key="$(python3 -c 'import base64,os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())')"
-  printf "COMMAND_RUNNER_SECRET_KEY=%s\n" "${secret_key}" >> "${ENV_FILE}"
+  printf "MULTI_COMMAND_RUNNER_SECRET_KEY=%s\n" "${secret_key}" >> "${ENV_FILE}"
 fi
 
-current_auth_user="$(grep -E "^[[:space:]]*COMMAND_RUNNER_AUTH_USER=" "${ENV_FILE}" | tail -n 1 | cut -d'=' -f2- || true)"
-current_auth_pass="$(grep -E "^[[:space:]]*COMMAND_RUNNER_AUTH_PASSWORD=" "${ENV_FILE}" | tail -n 1 | cut -d'=' -f2- || true)"
+current_auth_user="$(grep -E "^[[:space:]]*MULTI_COMMAND_RUNNER_AUTH_USER=" "${ENV_FILE}" | tail -n 1 | cut -d'=' -f2- || true)"
+current_auth_pass="$(grep -E "^[[:space:]]*MULTI_COMMAND_RUNNER_AUTH_PASSWORD=" "${ENV_FILE}" | tail -n 1 | cut -d'=' -f2- || true)"
 
 # On update runs, keep existing auth state unless the caller explicitly sets ENABLE_BASIC_AUTH.
 if [[ "${is_fresh_install}" != "1" && -z "${ENABLE_BASIC_AUTH_WAS_SET}" ]]; then
@@ -264,17 +264,17 @@ if [[ "${ENABLE_BASIC_AUTH}" == "1" ]]; then
   if [[ "${manual_auth_configured}" == "1" ]]; then
     current_auth_user="${install_auth_user}"
     current_auth_pass="${install_auth_password}"
-    upsert_env "COMMAND_RUNNER_AUTH_USER" "${current_auth_user}" "${ENV_FILE}"
-    upsert_env "COMMAND_RUNNER_AUTH_PASSWORD" "${current_auth_pass}" "${ENV_FILE}"
+    upsert_env "MULTI_COMMAND_RUNNER_AUTH_USER" "${current_auth_user}" "${ENV_FILE}"
+    upsert_env "MULTI_COMMAND_RUNNER_AUTH_PASSWORD" "${current_auth_pass}" "${ENV_FILE}"
   fi
 
   if [[ -z "${current_auth_user}" ]]; then
     current_auth_user="admin"
-    upsert_env "COMMAND_RUNNER_AUTH_USER" "${current_auth_user}" "${ENV_FILE}"
+    upsert_env "MULTI_COMMAND_RUNNER_AUTH_USER" "${current_auth_user}" "${ENV_FILE}"
   fi
   if [[ -z "${current_auth_pass}" ]]; then
     generated_auth_password="$(python3 -c 'import secrets,string; alphabet=string.ascii_letters + string.digits; print("".join(secrets.choice(alphabet) for _ in range(20)))')"
-    upsert_env "COMMAND_RUNNER_AUTH_PASSWORD" "${generated_auth_password}" "${ENV_FILE}"
+    upsert_env "MULTI_COMMAND_RUNNER_AUTH_PASSWORD" "${generated_auth_password}" "${ENV_FILE}"
     current_auth_pass="${generated_auth_password}"
   fi
   effective_auth_user="${current_auth_user}"
@@ -291,7 +291,7 @@ fi
 log "Writing systemd unit: ${SERVICE_UNIT_PATH}"
 cat > "${SERVICE_UNIT_PATH}" <<EOF
 [Unit]
-Description=Command Runner Web App
+Description=Multi Command Runner Web App
 After=network-online.target
 Wants=network-online.target
 
@@ -366,7 +366,7 @@ fi
 
 echo
 echo "============================================================"
-echo "command-runner installation completed successfully."
+echo "multi-command-runner installation completed successfully."
 echo "Service: ${SERVICE_NAME}.service"
 echo "Install dir: ${INSTALL_DIR}"
 echo "Data dir: ${DATA_DIR}"

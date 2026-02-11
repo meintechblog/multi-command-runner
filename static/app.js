@@ -11,7 +11,7 @@ const runtime = {
   spinnerStartTimes: {},
 };
 
-const UI_STORAGE_KEY = "command-runner.ui";
+const UI_STORAGE_KEY = "multi-command-runner.ui";
 const MASKED_SECRET = "__SECRET_SET__";
 
 function normalizeLang(value) {
@@ -2528,7 +2528,7 @@ async function wireUI() {
     try {
       const a = document.createElement("a");
       a.href = apiUrl("/api/export");
-      a.download = `command-runner-export-${new Date().toISOString().slice(0, 19).replace(/:/g, "")}.json`;
+      a.download = `multi-command-runner-export-${new Date().toISOString().slice(0, 19).replace(/:/g, "")}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

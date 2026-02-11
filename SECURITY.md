@@ -2,7 +2,7 @@
 
 ## High-Risk Capability
 
-`command-runner` executes arbitrary shell commands (`bash -lc`) configured in the UI.
+`multi-command-runner` executes arbitrary shell commands (`bash -lc`) configured in the UI.
 Treat this as a privileged administrative tool.
 
 ## Minimum Recommendations
@@ -18,8 +18,8 @@ Treat this as a privileged administrative tool.
 The application supports built-in HTTP Basic auth for UI and API endpoints.
 
 - Enable by setting both:
-  - `COMMAND_RUNNER_AUTH_USER`
-  - `COMMAND_RUNNER_AUTH_PASSWORD`
+  - `MULTI_COMMAND_RUNNER_AUTH_USER`
+  - `MULTI_COMMAND_RUNNER_AUTH_PASSWORD`
 - If only one of the two values is set, auth remains disabled (warning logged).
 - The install script bootstraps these values by default unless `ENABLE_BASIC_AUTH=0` is used.
 
@@ -29,7 +29,7 @@ Notification service credentials are encrypted at rest in the SQLite state.
 
 - Storage format: `enc:v1:<token>` (Fernet)
 - Key source priority:
-  1. `COMMAND_RUNNER_SECRET_KEY` environment variable
+  1. `MULTI_COMMAND_RUNNER_SECRET_KEY` environment variable
   2. `data/.credentials.key` (auto-generated fallback)
 
 Without access to the encryption key, encrypted credentials cannot be decrypted.

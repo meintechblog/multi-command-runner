@@ -17,7 +17,7 @@ User context:
 
 Important:
 
-- The installer creates a system service account `command-runner` for runtime by default.
+- The installer creates a system service account `multi-command-runner` for runtime by default.
 - That account is not your interactive login account.
 - After installation, the app runs as a `systemd` service automatically.
 
@@ -26,7 +26,7 @@ Important:
 Run this inside the new container as `root`:
 
 ```bash
-apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/install.sh | bash
+apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/install.sh | bash
 ```
 
 If you are **not root** but have `sudo`, use this beginner-safe flow:
@@ -34,20 +34,20 @@ If you are **not root** but have `sudo`, use this beginner-safe flow:
 ```bash
 sudo apt-get update
 sudo apt-get install -y curl
-curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/install.sh -o /tmp/command-runner-install.sh
-sudo bash /tmp/command-runner-install.sh
+curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/install.sh -o /tmp/multi-command-runner-install.sh
+sudo bash /tmp/multi-command-runner-install.sh
 ```
 
 What this installer does automatically:
 
 - installs required OS packages
-- clones/updates repo to `/opt/command-runner`
+- clones/updates repo to `/opt/multi-command-runner`
 - creates `.venv` and installs Python dependencies
-- creates/updates `.env` including generated `COMMAND_RUNNER_SECRET_KEY`
+- creates/updates `.env` including generated `MULTI_COMMAND_RUNNER_SECRET_KEY`
 - on fresh installs: asks whether HTTP Basic auth should be enabled
 - if enabled: lets you set username/password interactively (password minimum: 8 characters)
 - on updates: keeps existing auth state (disabled stays disabled, enabled stays enabled) without interactive auth prompt
-- installs/enables service and restarts `command-runner.service` (systemd)
+- installs/enables service and restarts `multi-command-runner.service` (systemd)
 - runs API health check and prints access URL/log commands
 
 You can re-run the same one-liner later to apply updates from GitHub.
@@ -62,40 +62,40 @@ Browser auth note (important):
 Optional overrides (example):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/install.sh | REPO_BRANCH=main PORT_BIND=8090 INSTALL_DIR=/opt/command-runner bash
+curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/install.sh | REPO_BRANCH=main PORT_BIND=8090 INSTALL_DIR=/opt/multi-command-runner bash
 ```
 
 Disable automatic Basic-auth bootstrap (not recommended):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/install.sh | ENABLE_BASIC_AUTH=0 bash
+curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/install.sh | ENABLE_BASIC_AUTH=0 bash
 ```
 
 ## Automated Uninstall
 
 Safe default uninstall:
 
-- removes `command-runner.service` (if present)
-- removes install directory (`/opt/command-runner` by default)
+- removes `multi-command-runner.service` (if present)
+- removes install directory (`/opt/multi-command-runner` by default)
 - keeps data directory and service account unless you opt in
 
 Run as `root` inside the container:
 
 ```bash
-apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/uninstall.sh | bash
+apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/uninstall.sh | bash
 ```
 
 Non-interactive full purge:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/meintechblog/command-runner/main/scripts/uninstall.sh | REMOVE_DATA=1 REMOVE_SYSTEM_ACCOUNT=1 FORCE=1 bash
+curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/uninstall.sh | REMOVE_DATA=1 REMOVE_SYSTEM_ACCOUNT=1 FORCE=1 bash
 ```
 
 Optional uninstall variables:
 
-- `SERVICE_NAME` (default: `command-runner`)
-- `INSTALL_DIR` (default: `/opt/command-runner`)
-- `DATA_DIR` (default: from `.env` or `/opt/command-runner/data`)
+- `SERVICE_NAME` (default: `multi-command-runner`)
+- `INSTALL_DIR` (default: `/opt/multi-command-runner`)
+- `DATA_DIR` (default: from `.env` or `/opt/multi-command-runner/data`)
 - `REMOVE_INSTALL_DIR` (`1`/`0`, default: `1`)
 - `REMOVE_DATA` (`1`/`0`, default: `0`)
 - `REMOVE_SYSTEM_ACCOUNT` (`1`/`0`, default: `0`)
@@ -103,7 +103,7 @@ Optional uninstall variables:
 
 ## 0) Proxmox LXC (Recommended Homelab Setup)
 
-If you run `command-runner` on Proxmox, an unprivileged Debian 12 LXC is a good default.
+If you run `multi-command-runner` on Proxmox, an unprivileged Debian 12 LXC is a good default.
 
 Template (once per node):
 
@@ -118,7 +118,7 @@ Create container (example based on your setup):
 ```bash
 pct create 1030 \
   /var/lib/vz/template/cache/debian-12-standard_12.12-1_amd64.tar.zst \
-  --hostname command-runner-lxc \
+  --hostname multi-command-runner-lxc \
   --password 'meinpasswort' \
   --cores 1 \
   --memory 512 \
@@ -174,8 +174,8 @@ sudo apt install -y python3 python3-venv python3-pip git
 ## 2) Clone Repository
 
 ```bash
-git clone git@github.com:meintechblog/command-runner.git
-cd command-runner
+git clone git@github.com:meintechblog/multi-command-runner.git
+cd multi-command-runner
 ```
 
 ## 3) Python Environment
@@ -200,22 +200,22 @@ Minimal values:
 ```env
 HOST=127.0.0.1
 PORT=8080
-DATA_DIR=/opt/command-runner/data
+DATA_DIR=/opt/multi-command-runner/data
 ```
 
 Optional (recommended) explicit secret for credential encryption:
 
 ```env
-COMMAND_RUNNER_SECRET_KEY=replace-with-strong-random-secret
+MULTI_COMMAND_RUNNER_SECRET_KEY=replace-with-strong-random-secret
 ```
 
-If `COMMAND_RUNNER_SECRET_KEY` is not set, the app auto-creates `data/.credentials.key`.
+If `MULTI_COMMAND_RUNNER_SECRET_KEY` is not set, the app auto-creates `data/.credentials.key`.
 
 Optional (recommended) HTTP Basic auth:
 
 ```env
-COMMAND_RUNNER_AUTH_USER=admin
-COMMAND_RUNNER_AUTH_PASSWORD=replace-with-strong-password
+MULTI_COMMAND_RUNNER_AUTH_USER=admin
+MULTI_COMMAND_RUNNER_AUTH_PASSWORD=replace-with-strong-password
 ```
 
 If both values are set, all UI/API routes require authentication.
@@ -237,29 +237,29 @@ Open `http://HOST:PORT`.
 Create a dedicated service user (recommended):
 
 ```bash
-if ! id -u command-runner >/dev/null 2>&1; then
-  sudo useradd --system --home /opt/command-runner --shell /usr/sbin/nologin command-runner
+if ! id -u multi-command-runner >/dev/null 2>&1; then
+  sudo useradd --system --home /opt/multi-command-runner --shell /usr/sbin/nologin multi-command-runner
 fi
-sudo chown -R command-runner:command-runner /opt/command-runner
+sudo chown -R multi-command-runner:multi-command-runner /opt/multi-command-runner
 ```
 
-Create `/etc/systemd/system/command-runner.service`:
+Create `/etc/systemd/system/multi-command-runner.service`:
 
 ```ini
 [Unit]
-Description=Command Runner Web App
+Description=Multi Command Runner Web App
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/command-runner
+WorkingDirectory=/opt/multi-command-runner
 
-EnvironmentFile=/opt/command-runner/.env
+EnvironmentFile=/opt/multi-command-runner/.env
 Environment=HOST=0.0.0.0
 Environment=PORT=8080
 
-ExecStart=/opt/command-runner/.venv/bin/python -m app.main
+ExecStart=/opt/multi-command-runner/.venv/bin/python -m app.main
 
 Restart=on-failure
 RestartSec=3
@@ -274,8 +274,8 @@ SendSIGKILL=yes
 # NoNewPrivileges=true
 # PrivateTmp=true
 
-User=command-runner
-Group=command-runner
+User=multi-command-runner
+Group=multi-command-runner
 
 [Install]
 WantedBy=multi-user.target
@@ -283,32 +283,32 @@ WantedBy=multi-user.target
 
 If you intentionally run as `root`, replace:
 
-- `User=command-runner` with `User=root`
-- `Group=command-runner` with `Group=root`
+- `User=multi-command-runner` with `User=root`
+- `Group=multi-command-runner` with `Group=root`
 
 Enable/start:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now command-runner.service
-sudo systemctl status command-runner.service
+sudo systemctl enable --now multi-command-runner.service
+sudo systemctl status multi-command-runner.service
 ```
 
 Useful checks:
 
 ```bash
-sudo systemctl restart command-runner.service
-sudo journalctl -u command-runner.service -f
+sudo systemctl restart multi-command-runner.service
+sudo journalctl -u multi-command-runner.service -f
 ```
 
 ## 7) Upgrade Procedure
 
 ```bash
-cd /opt/command-runner
+cd /opt/multi-command-runner
 git pull --rebase
 source .venv/bin/activate
 pip install -r requirements.txt
-sudo systemctl restart command-runner
+sudo systemctl restart multi-command-runner
 ```
 
 ## 8) Backup Hints
@@ -318,4 +318,4 @@ Important data to back up:
 - `data/app.db`
 - `data/runtime_status.json`
 - `data/.credentials.key` (if used)
-- `.env` (if `COMMAND_RUNNER_SECRET_KEY` is set there)
+- `.env` (if `MULTI_COMMAND_RUNNER_SECRET_KEY` is set there)

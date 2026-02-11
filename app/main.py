@@ -1,5 +1,5 @@
 """
-command-runner
+multi-command-runner
 
 - Multiple runners (add/collapse), each: name, command, cases, logging toggle, scheduler.
 - Scheduler: if interval>0, reruns interval seconds AFTER finishing; run count 1..100 or infinite.
@@ -60,11 +60,11 @@ MAX_CASES_PER_RUNNER = max(1, int(os.environ.get("MAX_CASES_PER_RUNNER", "200"))
 MAX_SSE_SUBSCRIBERS = max(1, int(os.environ.get("MAX_SSE_SUBSCRIBERS", "100")))
 MAX_OUTPUT_LINES_PER_RUN = max(200, int(os.environ.get("MAX_OUTPUT_LINES_PER_RUN", "5000")))
 
-AUTH_USER = os.environ.get("COMMAND_RUNNER_AUTH_USER", "").strip()
-AUTH_PASSWORD = os.environ.get("COMMAND_RUNNER_AUTH_PASSWORD", "").strip()
+AUTH_USER = os.environ.get("MULTI_COMMAND_RUNNER_AUTH_USER", "").strip()
+AUTH_PASSWORD = os.environ.get("MULTI_COMMAND_RUNNER_AUTH_PASSWORD", "").strip()
 AUTH_ENABLED = bool(AUTH_USER and AUTH_PASSWORD)
 if (AUTH_USER and not AUTH_PASSWORD) or (AUTH_PASSWORD and not AUTH_USER):
-    print("WARN: Incomplete auth config (COMMAND_RUNNER_AUTH_USER/PASSWORD). Basic auth is disabled.")
+    print("WARN: Incomplete auth config (MULTI_COMMAND_RUNNER_AUTH_USER/PASSWORD). Basic auth is disabled.")
 
 
 def _valid_safe_id(value: str) -> bool:
@@ -109,7 +109,7 @@ class CredentialCipher:
     """
     Encrypt/decrypt notification credentials at rest.
     - Key source priority:
-      1) COMMAND_RUNNER_SECRET_KEY env var
+      1) MULTI_COMMAND_RUNNER_SECRET_KEY env var
       2) DATA_DIR/.credentials.key (auto-created on first start)
     - Stored format: enc:v1:<fernet-token>
     """
@@ -133,7 +133,7 @@ class CredentialCipher:
             return Fernet(derived)
 
     def _init_fernet(self, data_dir: Path) -> None:
-        env_secret = os.environ.get("COMMAND_RUNNER_SECRET_KEY", "").strip()
+        env_secret = os.environ.get("MULTI_COMMAND_RUNNER_SECRET_KEY", "").strip()
         if env_secret:
             self._fernet = self._build_fernet(env_secret)
             self._enabled = True
@@ -1725,7 +1725,7 @@ broker = EventBroker()
 notifier = NotificationWorker(broker, store)
 rm = RunnerManager(broker, notifier)
 
-app = FastAPI(title="command-runner", version="2.1.10")
+app = FastAPI(title="multi-command-runner", version="2.2.0")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
@@ -1747,7 +1747,7 @@ async def auth_middleware(request: Request, call_next):
     return JSONResponse(
         {"detail": "Unauthorized"},
         status_code=401,
-        headers={"WWW-Authenticate": 'Basic realm="command-runner"'},
+        headers={"WWW-Authenticate": 'Basic realm="multi-command-runner"'},
     )
 
 
@@ -1983,7 +1983,7 @@ def export_runners() -> StreamingResponse:
         buf,
         media_type="application/json",
         headers={
-            "Content-Disposition": f'attachment; filename="command-runner-export-{dt.datetime.now().strftime("%Y%m%d_%H%M%S")}.json"'
+            "Content-Disposition": f'attachment; filename="multi-command-runner-export-{dt.datetime.now().strftime("%Y%m%d_%H%M%S")}.json"'
         },
     )
 
