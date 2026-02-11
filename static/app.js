@@ -13,17 +13,22 @@ const runtime = {
 
 const UI_STORAGE_KEY = "multi-command-runner.ui";
 const MASKED_SECRET = "__SECRET_SET__";
+const LANG_ORDER = ["de", "en", "fr"];
+const LANG_FALLBACK = "de";
+const LANG_LABELS = { de: "DE", en: "EN", fr: "FR" };
+const LANG_LOCALES = { de: "de-DE", en: "en-US", fr: "fr-FR" };
 
 function normalizeLang(value) {
   const s = String(value || "").trim().toLowerCase();
   if (s.startsWith("de")) return "de";
   if (s.startsWith("en")) return "en";
+  if (s.startsWith("fr")) return "fr";
   return "";
 }
 
 function detectDefaultLang() {
   const nav = normalizeLang(navigator.language || "");
-  return nav || "de";
+  return nav || LANG_FALLBACK;
 }
 
 function loadUIState() {
@@ -84,6 +89,7 @@ const I18N = {
     lang_switch_aria: "Sprache",
     lang_toggle_title_to_en: "Zu Englisch wechseln",
     lang_toggle_title_to_de: "Zu Deutsch wechseln",
+    lang_toggle_title_to_fr: "Zu Franzosisch wechseln",
     notify_services_title: "Notification services",
     runners_title: "Runners",
     add_service: "+ Dienst",
@@ -200,6 +206,7 @@ const I18N = {
     journal_load_failed: "JOURNAL-LADEN FEHLGESCHLAGEN: {err}",
     running_label: "running",
     scheduled_label: "scheduled",
+    confirm_leave_active_runner: "Mindestens ein Runner läuft noch. Seite wirklich verlassen?",
     run_started: "{rid}: RUN GESTARTET.",
     run_stopping: "{rid}: STOPPE RUN...",
     run_stopped: "{rid}: RUN GESTOPPT.",
@@ -245,6 +252,7 @@ const I18N = {
     lang_switch_aria: "Language",
     lang_toggle_title_to_en: "Switch to English",
     lang_toggle_title_to_de: "Switch to German",
+    lang_toggle_title_to_fr: "Switch to French",
     notify_services_title: "Notification services",
     runners_title: "Runners",
     add_service: "+ Service",
@@ -361,6 +369,7 @@ const I18N = {
     journal_load_failed: "FAILED TO LOAD JOURNAL: {err}",
     running_label: "running",
     scheduled_label: "scheduled",
+    confirm_leave_active_runner: "At least one runner is still running. Leave this page anyway?",
     run_started: "{rid}: RUN STARTED.",
     run_stopping: "{rid}: STOPPING RUN...",
     run_stopped: "{rid}: RUN STOPPED.",
@@ -399,10 +408,186 @@ const I18N = {
   },
 };
 
+I18N.fr = {
+  ...I18N.en,
+  sort_label: "Tri: {state}",
+  sort_on: "On",
+  sort_off: "Off",
+  no_changes: "Aucun changement",
+  open_info_title: "Ouvrir les informations du programme",
+  lang_switch_aria: "Langue",
+  lang_toggle_title_to_en: "Passer en anglais",
+  lang_toggle_title_to_de: "Passer en allemand",
+  lang_toggle_title_to_fr: "Passer en francais",
+  notify_services_title: "Services de notification",
+  runners_title: "Runners",
+  add_service: "+ Service",
+  add_runner: "+ Runner",
+  export: "⬇ Export",
+  import: "⬆ Import",
+  notification_journal: "Journal des notifications",
+  clear_journal: "Vider le journal",
+  events: "Evenements",
+  clear_events: "Vider les evenements",
+  close: "Fermer",
+  active_since: "Actif depuis: {elapsed}",
+  journal_error: "ERREUR",
+  cmd_missing_reason: "Commande manquante: ajoutez d'abord une commande.",
+  cmd_missing_short: "Commande manquante.",
+  save_first_reason: "Veuillez d'abord enregistrer (mode edition).",
+  unknown_notify_service: "Service de notification inconnu.",
+  service_name_missing: "Le nom du service est manquant.",
+  user_key_missing: "La cle utilisateur est manquante.",
+  api_token_missing: "Le token API est manquant.",
+  service_fallback: "Service",
+  new_service_fallback: "Nouveau service",
+  new_runner_fallback: "Nouveau",
+  save_blocked: "ENREGISTREMENT BLOQUE: {reasons}",
+  save_blocked_log: "ENREGISTREMENT BLOQUE: {reasons}",
+  infinite: "infini",
+  off: "off",
+  failures: "{n} echecs",
+  no_status: "(pas de statut)",
+  notify_none_configured: "Aucun service de notification configure. Cliquez sur \"+ Service\" pour en ajouter un.",
+  service_name_placeholder: "Nom du service",
+  move_up: "Monter",
+  move_down: "Descendre",
+  service_active_title: "Service actif (cliquer pour desactiver)",
+  service_inactive_title: "Service inactif (cliquer pour activer)",
+  active: "Actif",
+  inactive: "Inactif",
+  service_inactive: "Le service est inactif",
+  save: "💾 Enregistrer",
+  remove: "Supprimer",
+  secret_set: "***defini***",
+  user_key_enter: "Entrer la cle utilisateur",
+  api_token_enter: "Entrer le token API",
+  creds_hint: "Les identifiants sont masques. Une nouvelle saisie remplace les valeurs existantes.",
+  service_enabled: "SERVICE \"{label}\" ACTIVE.",
+  service_disabled: "SERVICE \"{label}\" DESACTIVE.",
+  test_notify_start: "TEST DU SERVICE DE NOTIFICATION \"{name}\"...",
+  test_ok_log: "TEST OK POUR \"{name}\". REPONSE: {response}",
+  test_ok_flash: "TEST REUSSI POUR \"{name}\".",
+  test_fail: "ECHEC DU TEST POUR \"{name}\": {err}",
+  confirm_delete_notify: "Supprimer vraiment le service de notification \"{name}\"?",
+  notify_removed: "SERVICE DE NOTIFICATION \"{name}\" SUPPRIME.",
+  notify_status_inactive_auto: "Inactif: {fail}/3 echecs. Envoye: {sent}.",
+  notify_status_inactive_manual: "Inactif: manuel. Envoye: {sent}.",
+  notify_status_active_fail: "Actif: {fail}/3 echecs. Envoye: {sent}.",
+  notify_status_active_ok: "Actif: OK. Envoye: {sent}.",
+  notify_auto_disabled_base: "{label} a ete desactive apres {fail} echecs.",
+  notify_auto_disabled_reason_suffix: " Raison: {reason}",
+  confirm_delete_case: "Supprimer vraiment le case {idx}?",
+  case_pattern_placeholder: "ex. password:\\s*(?P<pw>\\S+)",
+  case_message_placeholder: "ex. Mot de passe: {pw}",
+  case_help: "Template: {match}, {g1}, {name} | Statut pour la logique UP/DOWN/Recovery",
+  runner_placeholder: "Nom du runner",
+  lock_active_title: "Verrouille pendant l'activite.",
+  clone_needs_saved_title: "Clonable uniquement apres enregistrement.",
+  notifications: "Notifications",
+  no_services_available: "Aucun service disponible",
+  notify_on_title: "Notifications ON",
+  notify_off_title: "Notifications OFF",
+  on: "On",
+  off_short: "Off",
+  enable_first: "Activer d'abord",
+  updates_only: "Mises a jour seulement",
+  updates_only_title_on: "Envoyer uniquement les changements d'etat",
+  updates_only_title_off: "Envoyer chaque correspondance",
+  logging_title: "Si desactive: aucune ecriture dans data/run_<runner_id>.log",
+  logging_on: "ON",
+  logging_off: "OFF",
+  open_log: "📄 Ouvrir le log",
+  clear_log: "🗑️ Vider le log",
+  confirm_clear_log: "Vider vraiment le fichier log?",
+  log_cleared_log: "LOG POUR {rid} VIDE.",
+  log_cleared_flash: "LOG VIDE POUR {rid}.",
+  log_clear_failed: "ECHEC VIDAGE LOG POUR {rid}: {err}",
+  scheduler: "Scheduler (apres la fin du run)",
+  hours: "Heures",
+  minutes: "Minutes",
+  seconds: "Secondes",
+  total_runs: "Nombre total de runs",
+  alert_cooldown: "Cooldown d'alerte",
+  escalation: "Escalade",
+  auto_pause: "Pause auto",
+  cases: "Cases",
+  cases_hint: "Regex par ligne de sortie. Chaque match -> Pushover. Case vide (pattern+message vides) -> envoyer la derniere ligne.",
+  add_case: "+ Case",
+  add_case_title: "Ajouter un case",
+  copy: "📋 Copier",
+  copy_title: "Copier dans le presse-papiers",
+  output: "Sortie",
+  clipboard_blocked: "Presse-papiers bloque par le navigateur.",
+  copied: "✓ Copie",
+  output_copied: "SORTIE DE {rid} COPIEE DANS LE PRESSE-PAPIERS.",
+  copy_failed: "ECHEC DE COPIE: {err}",
+  stop_signal_sent: "SIGNAL STOP ENVOYE A {rid}.",
+  run_blocked_edit: "RUN BLOQUE: {rid} EST EN MODE EDITION. ENREGISTRE D'ABORD.",
+  run_not_possible_missing_cmd: "RUN IMPOSSIBLE: {rid} N'A PAS DE COMMANDE.",
+  runner_starting: "{rid} DEMARRE MAINTENANT.",
+  runstop_failed: "ECHEC RUN/STOP POUR {rid}: {err}",
+  confirm_delete_runner: "Supprimer vraiment le runner \"{name}\"?",
+  runner_removed: "RUNNER \"{name}\" SUPPRIME.",
+  clone_blocked: "CLONE BLOQUE: ENREGISTRER D'ABORD TOUTES LES MODIFICATIONS.",
+  runner_cloned: "RUNNER \"{source}\" CLONE{target}.",
+  clone_failed: "ECHEC DU CLONE: {err}",
+  journal_load_failed: "ECHEC DE CHARGEMENT DU JOURNAL: {err}",
+  running_label: "running",
+  scheduled_label: "scheduled",
+  confirm_leave_active_runner: "Au moins un runner est encore actif. Quitter quand meme?",
+  run_started: "{rid}: RUN DEMARRE.",
+  run_stopping: "{rid}: ARRET DU RUN...",
+  run_stopped: "{rid}: RUN ARRETE.",
+  run_scheduled: "{rid}: PROCHAIN RUN PLANIFIE DANS {sec} SECONDES.",
+  auto_pause_msg: "{rid}: PAUSE AUTO APRES {n} ECHECS. RUN MANUEL NECESSAIRE.",
+  runner_auto_pause_state: "Pause auto apres {n} echecs",
+  run_finished: "{rid}: RUN TERMINE (EXIT={code}, STOPPED={stopped}).",
+  run_finished_error: "{rid} TERMINE AVEC ERREUR (EXIT={code}).",
+  event_stream_unstable: "Flux d'evenements instable. Reconnexion.",
+  event_stream_unstable_log: "CONNEXION DU FLUX D'EVENEMENTS INSTABLE.",
+  autosave_ok: "AUTO-SAVE REUSSI.",
+  save_failed_log: "ECHEC ENREGISTREMENT: {err}",
+  save_failed_flash: "ECHEC ENREGISTREMENT: {err}",
+  notify_sort_mode: "MODE TRI NOTIFICATIONS {state}.",
+  runner_sort_mode: "MODE TRI RUNNERS {state}.",
+  sort_mode_on_upper: "ON",
+  sort_mode_off_upper: "OFF",
+  journal_cleared: "JOURNAL DES NOTIFICATIONS VIDE.",
+  journal_clear_failed: "ECHEC VIDAGE DU JOURNAL: {err}",
+  events_cleared: "EVENEMENTS VIDES.",
+  new_notify_default_name: "Nouveau service Pushover",
+  new_runner_default_name: "Nouveau Runner",
+  new_notify_created: "NOUVEAU SERVICE DE NOTIFICATION CREE. REMPLIR LES CHAMPS OBLIGATOIRES ET ENREGISTRER.",
+  new_runner_created: "NOUVEAU RUNNER CREE ET ENREGISTRE.",
+  new_runner_created_log: "RUNNER {rid} CREE ET ENREGISTRE.",
+  export_starting: "DEMARRAGE DE L'EXPORT...",
+  export_started_log: "EXPORT DEMARRE. LE TELECHARGEMENT DEVRAIT COMMENCER.",
+  export_started_flash: "EXPORT DEMARRE. LE TELECHARGEMENT DEVRAIT COMMENCER.",
+  export_failed: "ECHEC DE L'EXPORT: {err}",
+  import_running: "IMPORT EN COURS: {name}",
+  import_ok: "IMPORT REUSSI: {count} RUNNERS IMPORTES.",
+  import_failed: "ECHEC DE L'IMPORT: {err}",
+  system_ready: "Systeme pret.",
+  system_ready_log: "SYSTEME PRET.",
+  start_failed: "ECHEC DU DEMARRAGE: {err}",
+};
+
+function currentLang() {
+  return I18N[ui.lang] ? ui.lang : LANG_FALLBACK;
+}
+
+function nextLang(lang) {
+  const idx = LANG_ORDER.indexOf(lang);
+  if (idx < 0) return LANG_ORDER[0];
+  return LANG_ORDER[(idx + 1) % LANG_ORDER.length];
+}
+
 function t(key, vars = null) {
-  const lang = ui.lang === "en" ? "en" : "de";
-  const dict = I18N[lang] || I18N.de;
+  const lang = currentLang();
+  const dict = I18N[lang] || I18N[LANG_FALLBACK];
   let s = dict[key];
+  if (s === undefined) s = I18N.en[key];
   if (s === undefined) s = I18N.de[key];
   if (s === undefined) s = String(key);
   if (vars && typeof vars === "object") {
@@ -414,7 +599,8 @@ function t(key, vars = null) {
 }
 
 function applyLanguageToStaticDom() {
-  document.documentElement.lang = ui.lang === "en" ? "en" : "de";
+  const lang = currentLang();
+  document.documentElement.lang = lang;
 
   const openInfoTitle = el("openInfoTitle");
   if (openInfoTitle) openInfoTitle.title = t("open_info_title");
@@ -446,19 +632,25 @@ function applyLanguageToStaticDom() {
   const closeInfoBtn = el("closeInfoBtn");
   if (closeInfoBtn) closeInfoBtn.textContent = t("close");
 
-  const infoDe = el("infoBodyDe");
-  const infoEn = el("infoBodyEn");
-  if (infoDe && infoEn) {
-    const showEn = ui.lang === "en";
-    infoDe.classList.toggle("hidden", showEn);
-    infoEn.classList.toggle("hidden", !showEn);
+  const infoBodies = Array.from(document.querySelectorAll("#infoModal [data-lang]"));
+  if (infoBodies.length) {
+    let showLang = lang;
+    if (!infoBodies.some((node) => node.dataset.lang === showLang)) {
+      showLang = infoBodies.some((node) => node.dataset.lang === "en")
+        ? "en"
+        : String(infoBodies[0].dataset.lang || "");
+    }
+    infoBodies.forEach((node) => {
+      node.classList.toggle("hidden", node.dataset.lang !== showLang);
+    });
   }
 
   const toggleBtn = el("langToggleBtn");
   if (toggleBtn) {
     toggleBtn.setAttribute("aria-label", t("lang_switch_aria"));
-    toggleBtn.textContent = ui.lang === "en" ? "EN" : "DE";
-    toggleBtn.title = ui.lang === "en" ? t("lang_toggle_title_to_de") : t("lang_toggle_title_to_en");
+    toggleBtn.textContent = LANG_LABELS[lang] || lang.toUpperCase();
+    const next = nextLang(lang);
+    toggleBtn.title = t(`lang_toggle_title_to_${next}`);
   }
 
   // Keep buttons consistent even before the first state render completes.
@@ -466,7 +658,7 @@ function applyLanguageToStaticDom() {
 }
 
 function setLanguage(nextLang) {
-  const normalized = normalizeLang(nextLang) || "de";
+  const normalized = normalizeLang(nextLang) || LANG_FALLBACK;
   if (normalized === ui.lang) return;
   ui.lang = normalized;
   saveUIState();
@@ -524,7 +716,7 @@ function formatTime(isoString) {
   if (!isoString) return "";
   try {
     const d = new Date(isoString);
-    const locale = ui.lang === "en" ? "en-US" : "de-DE";
+    const locale = LANG_LOCALES[currentLang()] || LANG_LOCALES[LANG_FALLBACK];
     return d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   } catch (e) {
     return isoString;
@@ -551,7 +743,7 @@ function formatDateTime(isoString) {
   if (!isoString) return "";
   try {
     const d = new Date(isoString);
-    const locale = ui.lang === "en" ? "en-US" : "de-DE";
+    const locale = LANG_LOCALES[currentLang()] || LANG_LOCALES[LANG_FALLBACK];
     return d.toLocaleString(locale, {
       day: "2-digit",
       month: "2-digit",
@@ -2177,6 +2369,18 @@ function updateGlobalRunningStatus() {
   }
 }
 
+function hasActiveRunner() {
+  return Object.values(runtime.status).some((status) => !!status?.running);
+}
+
+function handleBeforeUnload(ev) {
+  if (!hasActiveRunner()) return;
+  const warning = t("confirm_leave_active_runner");
+  ev.preventDefault();
+  ev.returnValue = warning;
+  return warning;
+}
+
 function delayedStatusUpdate(rid, updateFn, minSpinnerMs = 500) {
   const startTime = runtime.spinnerStartTimes[rid];
   if (!startTime) {
@@ -2406,7 +2610,7 @@ async function wireUI() {
   const infoModal = el("infoModal");
 
   el("langToggleBtn")?.addEventListener("click", () => {
-    setLanguage(ui.lang === "en" ? "de" : "en");
+    setLanguage(nextLang(currentLang()));
   });
 
   openInfoTitle?.addEventListener("click", () => setInfoModalOpen(true));
@@ -2574,10 +2778,12 @@ async function wireUI() {
       e.target.value = "";
     }
   });
+
 }
 
 (async function main() {
   try {
+    window.addEventListener("beforeunload", handleBeforeUnload);
     applyLanguageToStaticDom();
     const st = await apiGet("/api/state");
     setFromState(st);

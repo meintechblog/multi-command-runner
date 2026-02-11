@@ -18,7 +18,7 @@
           <div id="flashDock">
             <div id="uiFlash" class="flash info" aria-live="polite"></div>
           </div>
-          <button id="langToggleBtn" class="btn langToggle" type="button" aria-label="Sprache" title="DE/EN">DE</button>
+          <button id="langToggleBtn" class="btn langToggle" type="button" aria-label="Sprache" title="DE/EN/FR">DE</button>
         </div>
       </header>
 
@@ -208,6 +208,74 @@
               <li>New runners are saved immediately when added. Without a command they cannot be started.</li>
               <li>Notification services can only be saved when all required fields are filled.</li>
               <li>Runners can be exported and imported as JSON.</li>
+            </ul>
+          </div>
+
+          <div id="infoBodyFr" data-lang="fr" class="hidden">
+            <p class="hint" style="margin:0 0 6px 0;">Version: <strong>v{{ app_version }}</strong></p>
+            <p class="hint" style="margin:0 0 10px 0;">Fonctionnalités principales et leur fonctionnement ensemble.</p>
+
+            <h3>1) Bases des Runners</h3>
+            <ul>
+              <li>Chaque runner a un nom, une commande, des cases, une affectation de notifications et un scheduler.</li>
+              <li><code>▶ Run</code> démarre immédiatement. <code>■ Stop</code> arrête les processus en cours et annule les runs planifiés.</li>
+              <li>Quand un runner est actif (en cours ou planifié), la durée est affichée au format <code>hh:mm:ss</code> (heures illimitées).</li>
+              <li>Tant qu'un runner est actif (en cours ou planifié), ses paramètres sont verrouillés (seule l'affectation notifications <code>On/Off</code> et <code>Updates only</code> reste modifiable).</li>
+              <li>Un runner peut démarrer seulement si ses changements sont enregistrés (hors mode édition).</li>
+              <li>L'ordre peut être modifié via le mode tri avec <code>↑/↓</code> (adapté mobile).</li>
+              <li>Les changements marquent subtilement le bouton Save et l'entrée (<code>dirty</code>).</li>
+              <li><code>Clone</code> crée une copie enregistrée du runner juste en dessous.</li>
+              <li>La section runners peut être repliée/dépliée en haut.</li>
+            </ul>
+
+            <h3>2) Scheduler</h3>
+            <ul>
+              <li>Les champs d'intervalle <code>Hours/Minutes/Seconds</code> planifient le prochain run après la fin d'un run.</li>
+              <li><code>Total runs</code> contrôle combien de fois un runner doit tourner au total (1..100 ou <code>infinite</code>).</li>
+              <li>Quand le scheduler est actif, le statut apparaît directement dans la ligne du runner.</li>
+            </ul>
+
+            <h3>3) Cases (Regex) & Logique de Statut</h3>
+            <ul>
+              <li>Chaque case vérifie les lignes de sortie avec un motif regex.</li>
+              <li>Le template peut utiliser des groupes: <code>{match}</code>, <code>{g1}</code>, <code>{g2}</code>, <code>{name}</code>.</li>
+              <li>Statut par case: <code>UP</code>, <code>DOWN</code>, <code>WARN</code>, <code>INFO</code> ou vide.</li>
+              <li>Un case fallback vide (pattern et template vides) envoie la dernière ligne de sortie à la fin du run.</li>
+            </ul>
+
+            <h3>4) Alertes (Par Runner)</h3>
+            <ul>
+              <li><code>Alert cooldown</code>: temps minimum entre messages répétés quand l'état problème reste inchangé (<code>DOWN/WARN</code>).</li>
+              <li><code>Escalation</code>: si un état problème persiste, envoie un nouveau message après ce délai (escalade).</li>
+              <li><code>Auto pause</code>: met le runner en pause après X runs en échec consécutifs (code de sortie non nul). 0 = off.</li>
+              <li>Le retour de <code>DOWN/WARN</code> vers <code>UP</code> est traité comme un événement de recovery.</li>
+            </ul>
+
+            <h3>5) Services de Notification</h3>
+            <ul>
+              <li>Plusieurs services de notification peuvent être affectés par runner.</li>
+              <li>Par service: nom, user key, API token, actif/inactif, test d'envoi, suppression.</li>
+              <li>Le statut live affiche le compteur d'échecs et le total des messages envoyés.</li>
+              <li>Après 3 échecs d'envoi consécutifs, un service est désactivé automatiquement.</li>
+              <li>Par affectation runner: <code>Active</code> et option <code>Only updates</code> (seulement les changements d'état au lieu des répétitions).</li>
+              <li>Les identifiants sont stockés chiffrés au repos côté backend et retournés masqués dans l'état API.</li>
+            </ul>
+
+            <h3>6) Sortie, Logs, Journal</h3>
+            <ul>
+              <li>Sortie live par runner avec bouton <code>Copy</code>.</li>
+              <li>Fichier log par runner: logging on/off, ouvrir, vider. Les fichiers vides sont créés automatiquement si nécessaire.</li>
+              <li>Le journal de notifications liste l'historique d'envoi avec les causes d'échec; il peut être vidé globalement.</li>
+              <li>La fenêtre events montre les actions live et changements de statut du flux d'événements; elle peut être vidée.</li>
+            </ul>
+
+            <h3>7) Enregistrement, Validation, Import/Export</h3>
+            <ul>
+              <li>Le bouton Save est marqué quand des changements existent (dirty).</li>
+              <li>Les champs obligatoires invalides marquent le bouton Save en rouge.</li>
+              <li>Les nouveaux runners sont enregistrés immédiatement à l'ajout. Sans commande, ils ne peuvent pas démarrer.</li>
+              <li>Les services de notification sont enregistrables seulement si tous les champs obligatoires sont remplis.</li>
+              <li>Les runners peuvent être exportés et importés en JSON.</li>
             </ul>
           </div>
         </div>
