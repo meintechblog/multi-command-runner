@@ -11,10 +11,6 @@
       <header class="row between center" id="topHeader">
         <h1 id="openInfoTitle" class="titleInfoTrigger" role="button" tabindex="0" title="Öffnet die Programm-Info">multi-command-runner</h1>
         <div class="headerRight">
-          <div class="row gap center" id="runningStatus">
-            <div class="spinner hidden" id="globalSpinner"></div>
-            <span class="small" id="runningCount"></span>
-          </div>
           <div id="flashDock">
             <div id="uiFlash" class="flash info" aria-live="polite"></div>
           </div>
@@ -43,6 +39,10 @@
 	          <div class="row gap center">
 	            <span id="runnerSectionToggle" class="toggle">-</span>
 	            <h2 id="runnerSectionTitle" style="margin:0;">Runners</h2>
+              <div class="row gap center hidden" id="runningStatus" role="status" aria-live="polite" aria-atomic="true">
+                <div class="spinner hidden" id="globalSpinner"></div>
+                <span id="runningCount"></span>
+              </div>
 	          </div>
 	          <div class="row gap wrapline">
 	            <button id="sortRunnerBtn" class="btn">Sortieren: Aus</button>
@@ -58,19 +58,29 @@
 	      </section>
 
 	      <section class="card">
-	        <div class="row between center" style="margin-bottom:10px;">
-	          <h2 id="notifyJournalTitle" style="margin:0;">Notification journal</h2>
+	        <div class="row between center wrapline" style="margin-bottom:10px;">
+	          <div class="row gap center">
+	            <span id="notifyJournalSectionToggle" class="toggle">-</span>
+	            <h2 id="notifyJournalTitle" style="margin:0;">Notification journal</h2>
+	          </div>
 	          <button id="clearNotifyJournalBtn" class="btn danger">Journal leeren</button>
 	        </div>
-	        <pre id="notifyJournal" class="output"></pre>
+          <div id="notifyJournalSectionBody">
+	          <pre id="notifyJournal" class="output"></pre>
+          </div>
 	      </section>
 	
 	      <section class="card">
-	        <div class="row between center" style="margin-bottom:10px;">
-	          <h2 id="eventsTitle" style="margin:0;">Events</h2>
+	        <div class="row between center wrapline" style="margin-bottom:10px;">
+	          <div class="row gap center">
+	            <span id="eventsSectionToggle" class="toggle">-</span>
+	            <h2 id="eventsTitle" style="margin:0;">Events</h2>
+	          </div>
 	          <button id="clearEventsBtn" class="btn danger">Events leeren</button>
 	        </div>
-	        <pre id="events" class="output"></pre>
+          <div id="eventsSectionBody">
+	          <pre id="events" class="output"></pre>
+          </div>
 	      </section>
     </div>
 

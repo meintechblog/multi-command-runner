@@ -39,6 +39,8 @@ function loadUIState() {
     return {
       notifySectionCollapsed: !!parsed.notifySectionCollapsed,
       runnerSectionCollapsed: !!parsed.runnerSectionCollapsed,
+      notifyJournalSectionCollapsed: !!parsed.notifyJournalSectionCollapsed,
+      eventsSectionCollapsed: !!parsed.eventsSectionCollapsed,
       notifySortMode: !!parsed.notifySortMode,
       runnerSortMode: !!parsed.runnerSortMode,
       lang: normalizeLang(parsed.lang) || "",
@@ -55,6 +57,8 @@ function saveUIState() {
       JSON.stringify({
         notifySectionCollapsed: !!ui.notifySectionCollapsed,
         runnerSectionCollapsed: !!ui.runnerSectionCollapsed,
+        notifyJournalSectionCollapsed: !!ui.notifyJournalSectionCollapsed,
+        eventsSectionCollapsed: !!ui.eventsSectionCollapsed,
         notifySortMode: !!ui.notifySortMode,
         runnerSortMode: !!ui.runnerSortMode,
         lang: ui.lang,
@@ -69,6 +73,8 @@ const loadedUIState = loadUIState();
 const ui = {
   notifySectionCollapsed: loadedUIState.notifySectionCollapsed ?? false,
   runnerSectionCollapsed: loadedUIState.runnerSectionCollapsed ?? false,
+  notifyJournalSectionCollapsed: loadedUIState.notifyJournalSectionCollapsed ?? false,
+  eventsSectionCollapsed: loadedUIState.eventsSectionCollapsed ?? false,
   notifySortMode: loadedUIState.notifySortMode ?? false,
   runnerSortMode: loadedUIState.runnerSortMode ?? false,
   lang: loadedUIState.lang || detectDefaultLang(),
@@ -1298,6 +1304,28 @@ function renderRunnerSection() {
   syncSortModeButtons();
 }
 
+function renderNotifyJournalSection() {
+  const toggle = el("notifyJournalSectionToggle");
+  const body = el("notifyJournalSectionBody");
+  if (toggle) {
+    toggle.textContent = ui.notifyJournalSectionCollapsed ? "+" : "-";
+  }
+  if (body) {
+    body.classList.toggle("hidden", ui.notifyJournalSectionCollapsed);
+  }
+}
+
+function renderEventsSection() {
+  const toggle = el("eventsSectionToggle");
+  const body = el("eventsSectionBody");
+  if (toggle) {
+    toggle.textContent = ui.eventsSectionCollapsed ? "+" : "-";
+  }
+  if (body) {
+    body.classList.toggle("hidden", ui.eventsSectionCollapsed);
+  }
+}
+
 function scheduleOptions(max) {
   let opts = "";
   for (let i = 0; i <= max; i++) opts += `<option value="${i}">${i}</option>`;
@@ -2352,19 +2380,40 @@ async function loadNotifyJournal() {
 function updateGlobalRunningStatus() {
   const runningCount = Object.values(runtime.status).filter((s) => s.running).length;
   const scheduledCount = Object.values(runtime.status).filter((s) => s.scheduled && !s.running).length;
+  const status = el("runningStatus");
   const spinner = el("globalSpinner");
   const count = el("runningCount");
 
   const hasActivity = runningCount > 0 || scheduledCount > 0;
+  const runningNow = runningCount > 0;
+  const displayCount = runningNow ? runningCount : scheduledCount;
+
+  status?.classList.toggle("hidden", !hasActivity);
+  status?.classList.toggle("is-active", hasActivity);
 
   if (hasActivity) {
     spinner?.classList.remove("hidden");
+    spinner?.classList.toggle("is-scheduled", !runningNow);
+    if (spinner) {
+      spinner.textContent = String(displayCount);
+      const spinnerLabel = runningNow
+        ? `${runningCount} ${t("running_label")}`
+        : `${scheduledCount} ${t("scheduled_label")}`;
+      spinner.setAttribute("title", spinnerLabel);
+      spinner.setAttribute("aria-label", spinnerLabel);
+    }
     const parts = [];
     if (runningCount > 0) parts.push(`${runningCount} ${t("running_label")}`);
     if (scheduledCount > 0) parts.push(`${scheduledCount} ${t("scheduled_label")}`);
-    if (count) count.textContent = parts.join(", ");
+    if (count) count.textContent = parts.join(" • ");
   } else {
     spinner?.classList.add("hidden");
+    spinner?.classList.remove("is-scheduled");
+    if (spinner) {
+      spinner.textContent = "";
+      spinner.removeAttribute("title");
+      spinner.removeAttribute("aria-label");
+    }
     if (count) count.textContent = "";
   }
 }
@@ -2644,6 +2693,18 @@ async function wireUI() {
     renderRunnerSection();
   });
 
+  el("notifyJournalSectionToggle")?.addEventListener("click", () => {
+    ui.notifyJournalSectionCollapsed = !ui.notifyJournalSectionCollapsed;
+    saveUIState();
+    renderNotifyJournalSection();
+  });
+
+  el("eventsSectionToggle")?.addEventListener("click", () => {
+    ui.eventsSectionCollapsed = !ui.eventsSectionCollapsed;
+    saveUIState();
+    renderEventsSection();
+  });
+
   el("sortNotifyBtn")?.addEventListener("click", () => {
     ui.notifySortMode = !ui.notifySortMode;
     saveUIState();
@@ -2785,6 +2846,8 @@ async function wireUI() {
   try {
     window.addEventListener("beforeunload", handleBeforeUnload);
     applyLanguageToStaticDom();
+    renderNotifyJournalSection();
+    renderEventsSection();
     const st = await apiGet("/api/state");
     setFromState(st);
     await loadNotifyJournal();
