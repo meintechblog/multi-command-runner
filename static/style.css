@@ -167,6 +167,49 @@ label span { display: block; font-size: 12px; opacity: 0.85; margin-bottom: 6px;
   cursor: default;
   overflow: hidden;
 }
+.groupCard {
+  border: 1px solid #35504e;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #10221f 0%, #0d1a18 100%);
+  margin: 14px 0;
+  overflow: hidden;
+}
+.groupHead {
+  padding: 12px 14px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(8, 22, 18, 0.58);
+}
+.groupTitleWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.groupTitleWrap input {
+  width: min(360px, 100%);
+  font-weight: 620;
+  border-color: #2b6059;
+  background: #102521;
+}
+.groupStateText {
+  color: #cdf5ec;
+  opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.groupActions { justify-content: flex-end; }
+.groupBody {
+  padding: 12px;
+  border-top: 1px solid #23413f;
+  background: #0b1513;
+}
+.groupBody > .runner:first-child { margin-top: 0; }
+.groupBody > .runner:last-child { margin-bottom: 0; }
 .runner.is-dirty {
   border-color: #5c4820;
   box-shadow: inset 0 0 0 1px rgba(246, 166, 35, 0.2);
@@ -392,6 +435,9 @@ a.loglink { display:inline-block; margin-top:8px; font-size:12px; opacity:0.9; }
   .notifyTitle input { width: 100%; }
   .notifyStateText { max-width: 100%; }
   .notifyActions { width: 100%; justify-content: flex-start; }
+  .groupHead { flex-direction: column; align-items: stretch; }
+  .groupActions { width: 100%; justify-content: flex-start; }
+  .groupStateText { white-space: normal; }
   .runnerHead { flex-direction: column; align-items: stretch; }
   .runnerActions { width: 100%; justify-content: flex-start; }
   .runnerTitleRow input { width: 100%; }

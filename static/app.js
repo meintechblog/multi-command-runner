@@ -3,10 +3,13 @@ const el = (id) => document.getElementById(id);
 const state = {
   notify_profiles: [],
   runners: [],
+  runner_groups: [],
+  runner_layout: [],
 };
 
 const runtime = {
   status: {},
+  groupStatus: {},
   outputs: {},
   spinnerStartTimes: {},
 };
@@ -99,6 +102,7 @@ const I18N = {
     notify_services_title: "Notification services",
     runners_title: "Runners",
     add_service: "+ Dienst",
+    add_group: "+ Obergruppe",
     add_runner: "+ Runner",
     export: "⬇ Export",
     import: "⬆ Import",
@@ -159,6 +163,7 @@ const I18N = {
     case_message_placeholder: "z.B. Passwort: {pw}",
     case_help: "Template: {match}, {g1}, {name} | Status fuer UP/DOWN/Recovery Logik",
     runner_placeholder: "Runner Name",
+    group_placeholder: "Gruppenname",
     lock_active_title: "Während Run aktiv gesperrt.",
     clone_needs_saved_title: "Nur im gespeicherten Zustand clonbar. Erst speichern.",
     notifications: "Benachrichtigungen",
@@ -204,6 +209,24 @@ const I18N = {
     run_not_possible_missing_cmd: "RUN NICHT MOEGLICH: BEI {rid} FEHLT DER COMMAND.",
     runner_starting: "{rid} STARTET JETZT.",
     runstop_failed: "RUN/STOP FEHLGESCHLAGEN FUER {rid}: {err}",
+    group_run: "▶ Group Run",
+    group_stop: "■ Group Stop",
+    group_empty: "Keine Runner in dieser Gruppe.",
+    group_run_starting: "GRUPPENLAUF FUER \"{name}\" STARTET...",
+    group_run_failed: "GRUPPENLAUF FEHLGESCHLAGEN FUER \"{name}\": {err}",
+    group_stop_sent: "STOPP-SIGNAL FUER GRUPPE \"{name}\" GESENDET.",
+    group_stop_failed: "GRUPPEN-STOP FEHLGESCHLAGEN FUER \"{name}\": {err}",
+    group_state_running: "Aktiv: {done}/{total} | aktuell: {runner}",
+    group_state_stopping: "Stoppt...",
+    group_state_finished: "Beendet ({done}/{total})",
+    group_state_error: "Fehler: {err}",
+    group_state_stopped: "Gestoppt",
+    group_event_started: "GRUPPE \"{name}\": SEQUENZ GESTARTET.",
+    group_event_stopped: "GRUPPE \"{name}\": SEQUENZ GESTOPPT.",
+    group_event_finished: "GRUPPE \"{name}\": SEQUENZ BEENDET.",
+    group_event_error: "GRUPPE \"{name}\": SEQUENZ FEHLER - {err}",
+    confirm_delete_group: "Obergruppe \"{name}\" wirklich löschen?",
+    group_removed: "OBERGRUPPE \"{name}\" ENTFERNT.",
     confirm_delete_runner: "Runner \"{name}\" wirklich löschen?",
     runner_removed: "RUNNER \"{name}\" ENTFERNT.",
     clone_blocked: "CLONE BLOCKIERT: BITTE ZUERST ALLE AENDERUNGEN SPEICHERN.",
@@ -234,8 +257,10 @@ const I18N = {
     journal_clear_failed: "JOURNAL LEEREN FEHLGESCHLAGEN: {err}",
     events_cleared: "EVENTS GELEERT.",
     new_notify_default_name: "Neuer Pushover-Dienst",
+    new_group_default_name: "Neue Obergruppe",
     new_runner_default_name: "New Runner",
     new_notify_created: "NEUER NOTIFICATION-DIENST ERSTELLT. PFLICHTFELDER AUSFUELLEN UND SPEICHERN.",
+    new_group_created: "NEUE OBERGRUPPE ERSTELLT UND GESPEICHERT.",
     new_runner_created: "NEUER RUNNER ERSTELLT UND GESPEICHERT.",
     new_runner_created_log: "RUNNER {rid} ERSTELLT UND GESPEICHERT.",
     export_starting: "EXPORT WIRD GESTARTET...",
@@ -262,6 +287,7 @@ const I18N = {
     notify_services_title: "Notification services",
     runners_title: "Runners",
     add_service: "+ Service",
+    add_group: "+ Group",
     add_runner: "+ Runner",
     export: "⬇ Export",
     import: "⬆ Import",
@@ -322,6 +348,7 @@ const I18N = {
     case_message_placeholder: "e.g. Password: {pw}",
     case_help: "Template: {match}, {g1}, {name} | Status for UP/DOWN/Recovery logic",
     runner_placeholder: "Runner name",
+    group_placeholder: "Group name",
     lock_active_title: "Locked while active.",
     clone_needs_saved_title: "Can only be cloned when saved. Save first.",
     notifications: "Notifications",
@@ -367,6 +394,24 @@ const I18N = {
     run_not_possible_missing_cmd: "RUN NOT POSSIBLE: {rid} HAS NO COMMAND.",
     runner_starting: "{rid} IS STARTING NOW.",
     runstop_failed: "RUN/STOP FAILED FOR {rid}: {err}",
+    group_run: "▶ Group Run",
+    group_stop: "■ Group Stop",
+    group_empty: "No runners in this group.",
+    group_run_starting: "STARTING GROUP RUN FOR \"{name}\"...",
+    group_run_failed: "GROUP RUN FAILED FOR \"{name}\": {err}",
+    group_stop_sent: "STOP SIGNAL SENT TO GROUP \"{name}\".",
+    group_stop_failed: "GROUP STOP FAILED FOR \"{name}\": {err}",
+    group_state_running: "Active: {done}/{total} | current: {runner}",
+    group_state_stopping: "Stopping...",
+    group_state_finished: "Finished ({done}/{total})",
+    group_state_error: "Error: {err}",
+    group_state_stopped: "Stopped",
+    group_event_started: "GROUP \"{name}\": SEQUENCE STARTED.",
+    group_event_stopped: "GROUP \"{name}\": SEQUENCE STOPPED.",
+    group_event_finished: "GROUP \"{name}\": SEQUENCE FINISHED.",
+    group_event_error: "GROUP \"{name}\": SEQUENCE ERROR - {err}",
+    confirm_delete_group: "Really delete group \"{name}\"?",
+    group_removed: "GROUP \"{name}\" REMOVED.",
     confirm_delete_runner: "Really delete runner \"{name}\"?",
     runner_removed: "RUNNER \"{name}\" REMOVED.",
     clone_blocked: "CLONE BLOCKED: PLEASE SAVE ALL CHANGES FIRST.",
@@ -397,8 +442,10 @@ const I18N = {
     journal_clear_failed: "CLEAR JOURNAL FAILED: {err}",
     events_cleared: "EVENTS CLEARED.",
     new_notify_default_name: "New Pushover service",
+    new_group_default_name: "New Group",
     new_runner_default_name: "New Runner",
     new_notify_created: "NEW NOTIFICATION SERVICE CREATED. FILL REQUIRED FIELDS AND SAVE.",
+    new_group_created: "NEW GROUP CREATED AND SAVED.",
     new_runner_created: "NEW RUNNER CREATED AND SAVED.",
     new_runner_created_log: "RUNNER {rid} CREATED AND SAVED.",
     export_starting: "STARTING EXPORT...",
@@ -428,6 +475,7 @@ I18N.fr = {
   notify_services_title: "Services de notification",
   runners_title: "Runners",
   add_service: "+ Service",
+  add_group: "+ Groupe",
   add_runner: "+ Runner",
   export: "⬇ Export",
   import: "⬆ Import",
@@ -488,6 +536,7 @@ I18N.fr = {
   case_message_placeholder: "ex. Mot de passe: {pw}",
   case_help: "Template: {match}, {g1}, {name} | Statut pour la logique UP/DOWN/Recovery",
   runner_placeholder: "Nom du runner",
+  group_placeholder: "Nom du groupe",
   lock_active_title: "Verrouille pendant l'activite.",
   clone_needs_saved_title: "Clonable uniquement apres enregistrement.",
   notifications: "Notifications",
@@ -533,6 +582,24 @@ I18N.fr = {
   run_not_possible_missing_cmd: "RUN IMPOSSIBLE: {rid} N'A PAS DE COMMANDE.",
   runner_starting: "{rid} DEMARRE MAINTENANT.",
   runstop_failed: "ECHEC RUN/STOP POUR {rid}: {err}",
+  group_run: "▶ Group Run",
+  group_stop: "■ Group Stop",
+  group_empty: "Aucun runner dans ce groupe.",
+  group_run_starting: "DEMARRAGE DU GROUP RUN POUR \"{name}\"...",
+  group_run_failed: "ECHEC GROUP RUN POUR \"{name}\": {err}",
+  group_stop_sent: "SIGNAL STOP ENVOYE AU GROUPE \"{name}\".",
+  group_stop_failed: "ECHEC DU STOP GROUPE \"{name}\": {err}",
+  group_state_running: "Actif: {done}/{total} | courant: {runner}",
+  group_state_stopping: "Arret en cours...",
+  group_state_finished: "Termine ({done}/{total})",
+  group_state_error: "Erreur: {err}",
+  group_state_stopped: "Arrete",
+  group_event_started: "GROUPE \"{name}\": SEQUENCE DEMARREE.",
+  group_event_stopped: "GROUPE \"{name}\": SEQUENCE ARRETEE.",
+  group_event_finished: "GROUPE \"{name}\": SEQUENCE TERMINEE.",
+  group_event_error: "GROUPE \"{name}\": ERREUR DE SEQUENCE - {err}",
+  confirm_delete_group: "Supprimer vraiment le groupe \"{name}\"?",
+  group_removed: "GROUPE \"{name}\" SUPPRIME.",
   confirm_delete_runner: "Supprimer vraiment le runner \"{name}\"?",
   runner_removed: "RUNNER \"{name}\" SUPPRIME.",
   clone_blocked: "CLONE BLOQUE: ENREGISTRER D'ABORD TOUTES LES MODIFICATIONS.",
@@ -563,8 +630,10 @@ I18N.fr = {
   journal_clear_failed: "ECHEC VIDAGE DU JOURNAL: {err}",
   events_cleared: "EVENEMENTS VIDES.",
   new_notify_default_name: "Nouveau service Pushover",
+  new_group_default_name: "Nouveau groupe",
   new_runner_default_name: "Nouveau Runner",
   new_notify_created: "NOUVEAU SERVICE DE NOTIFICATION CREE. REMPLIR LES CHAMPS OBLIGATOIRES ET ENREGISTRER.",
+  new_group_created: "NOUVEAU GROUPE CREE ET ENREGISTRE.",
   new_runner_created: "NOUVEAU RUNNER CREE ET ENREGISTRE.",
   new_runner_created_log: "RUNNER {rid} CREE ET ENREGISTRE.",
   export_starting: "DEMARRAGE DE L'EXPORT...",
@@ -628,6 +697,9 @@ function applyLanguageToStaticDom() {
 
   const addRunnerBtn = el("addRunnerBtn");
   if (addRunnerBtn) addRunnerBtn.textContent = t("add_runner");
+
+  const addGroupBtn = el("addGroupBtn");
+  if (addGroupBtn) addGroupBtn.textContent = t("add_group");
 
   const exportBtn = el("exportBtn");
   if (exportBtn) exportBtn.textContent = t("export");
@@ -697,6 +769,219 @@ function moveItemInArray(list, fromIndex, toIndex) {
   if (fromIndex === toIndex) return false;
   const [item] = list.splice(fromIndex, 1);
   list.splice(toIndex, 0, item);
+  return true;
+}
+
+function normalizeRunnerStructureState() {
+  if (!Array.isArray(state.runner_groups)) state.runner_groups = [];
+  if (!Array.isArray(state.runner_layout)) state.runner_layout = [];
+
+  const runnerIds = state.runners
+    .map((r) => String(r?.id || "").trim())
+    .filter((id) => !!id);
+  const validRunnerIds = new Set(runnerIds);
+
+  const nextGroups = [];
+  const seenGroupIds = new Set();
+  const assignedRunnerIds = new Set();
+  for (const rawGroup of state.runner_groups) {
+    if (!rawGroup || typeof rawGroup !== "object") continue;
+    const gid = String(rawGroup.id || "").trim();
+    if (!gid || seenGroupIds.has(gid)) continue;
+    seenGroupIds.add(gid);
+    const nextRunnerIds = [];
+    for (const rawRunnerId of Array.isArray(rawGroup.runner_ids) ? rawGroup.runner_ids : []) {
+      const rid = String(rawRunnerId || "").trim();
+      if (!rid || !validRunnerIds.has(rid)) continue;
+      if (assignedRunnerIds.has(rid)) continue;
+      if (nextRunnerIds.includes(rid)) continue;
+      assignedRunnerIds.add(rid);
+      nextRunnerIds.push(rid);
+    }
+    nextGroups.push({
+      id: gid,
+      name: String(rawGroup.name || "Group"),
+      runner_ids: nextRunnerIds,
+      _collapsed: !!rawGroup._collapsed,
+    });
+  }
+  state.runner_groups = nextGroups;
+
+  const groupedRunnerIds = new Set();
+  state.runner_groups.forEach((g) => {
+    (g.runner_ids || []).forEach((rid) => groupedRunnerIds.add(rid));
+  });
+
+  const validGroupIds = new Set(state.runner_groups.map((g) => g.id));
+  const nextLayout = [];
+  const seenLayoutRunnerIds = new Set();
+  const seenLayoutGroupIds = new Set();
+  for (const rawItem of state.runner_layout) {
+    if (!rawItem || typeof rawItem !== "object") continue;
+    const type = String(rawItem.type || "").trim().toLowerCase();
+    const id = String(rawItem.id || "").trim();
+    if (type === "runner") {
+      if (!validRunnerIds.has(id)) continue;
+      if (groupedRunnerIds.has(id)) continue;
+      if (seenLayoutRunnerIds.has(id)) continue;
+      seenLayoutRunnerIds.add(id);
+      nextLayout.push({ type: "runner", id });
+    } else if (type === "group") {
+      if (!validGroupIds.has(id)) continue;
+      if (seenLayoutGroupIds.has(id)) continue;
+      seenLayoutGroupIds.add(id);
+      nextLayout.push({ type: "group", id });
+    }
+  }
+
+  for (const rid of runnerIds) {
+    if (groupedRunnerIds.has(rid) || seenLayoutRunnerIds.has(rid)) continue;
+    nextLayout.push({ type: "runner", id: rid });
+    seenLayoutRunnerIds.add(rid);
+  }
+  for (const g of state.runner_groups) {
+    if (seenLayoutGroupIds.has(g.id)) continue;
+    nextLayout.push({ type: "group", id: g.id });
+    seenLayoutGroupIds.add(g.id);
+  }
+  state.runner_layout = nextLayout;
+}
+
+function findRunnerById(rid) {
+  return state.runners.find((r) => r.id === rid) || null;
+}
+
+function findGroupById(gid) {
+  return state.runner_groups.find((g) => g.id === gid) || null;
+}
+
+function findGroupContainingRunner(rid) {
+  return state.runner_groups.find((g) => (g.runner_ids || []).includes(rid)) || null;
+}
+
+function findLayoutIndexByRunnerId(rid) {
+  return state.runner_layout.findIndex((item) => item?.type === "runner" && item?.id === rid);
+}
+
+function findLayoutIndexByGroupId(gid) {
+  return state.runner_layout.findIndex((item) => item?.type === "group" && item?.id === gid);
+}
+
+function removeRunnerFromLayout(rid) {
+  const idx = findLayoutIndexByRunnerId(rid);
+  if (idx >= 0) state.runner_layout.splice(idx, 1);
+}
+
+function removeRunnerFromGroups(rid) {
+  state.runner_groups.forEach((g) => {
+    g.runner_ids = (g.runner_ids || []).filter((id) => id !== rid);
+  });
+}
+
+function insertRunnerInLayout(rid, index) {
+  removeRunnerFromGroups(rid);
+  removeRunnerFromLayout(rid);
+  const targetIndex = clampInt(index, 0, state.runner_layout.length);
+  state.runner_layout.splice(targetIndex, 0, { type: "runner", id: rid });
+  normalizeRunnerStructureState();
+}
+
+function insertRunnerIntoGroup(rid, gid, index) {
+  const group = findGroupById(gid);
+  if (!group) return false;
+  removeRunnerFromGroups(rid);
+  removeRunnerFromLayout(rid);
+  const ids = Array.isArray(group.runner_ids) ? [...group.runner_ids] : [];
+  const targetIndex = clampInt(index, 0, ids.length);
+  ids.splice(targetIndex, 0, rid);
+  group.runner_ids = ids;
+  normalizeRunnerStructureState();
+  return true;
+}
+
+function moveRunnerUpInStructure(rid) {
+  const group = findGroupContainingRunner(rid);
+  if (group) {
+    const idx = (group.runner_ids || []).indexOf(rid);
+    if (idx < 0) return false;
+    if (idx > 0) {
+      moveItemInArray(group.runner_ids, idx, idx - 1);
+      return true;
+    }
+    const groupLayoutIdx = findLayoutIndexByGroupId(group.id);
+    if (groupLayoutIdx < 0) return false;
+    group.runner_ids = (group.runner_ids || []).filter((id) => id !== rid);
+    state.runner_layout.splice(groupLayoutIdx, 0, { type: "runner", id: rid });
+    normalizeRunnerStructureState();
+    return true;
+  }
+
+  const layoutIdx = findLayoutIndexByRunnerId(rid);
+  if (layoutIdx <= 0) return false;
+  const prev = state.runner_layout[layoutIdx - 1];
+  if (prev?.type === "runner") {
+    return moveItemInArray(state.runner_layout, layoutIdx, layoutIdx - 1);
+  }
+  if (prev?.type === "group") {
+    return insertRunnerIntoGroup(rid, prev.id, Number.MAX_SAFE_INTEGER);
+  }
+  return false;
+}
+
+function moveRunnerDownInStructure(rid) {
+  const group = findGroupContainingRunner(rid);
+  if (group) {
+    const ids = group.runner_ids || [];
+    const idx = ids.indexOf(rid);
+    if (idx < 0) return false;
+    if (idx < ids.length - 1) {
+      moveItemInArray(ids, idx, idx + 1);
+      return true;
+    }
+    const groupLayoutIdx = findLayoutIndexByGroupId(group.id);
+    if (groupLayoutIdx < 0) return false;
+    group.runner_ids = ids.filter((id) => id !== rid);
+    state.runner_layout.splice(groupLayoutIdx + 1, 0, { type: "runner", id: rid });
+    normalizeRunnerStructureState();
+    return true;
+  }
+
+  const layoutIdx = findLayoutIndexByRunnerId(rid);
+  if (layoutIdx < 0 || layoutIdx >= state.runner_layout.length - 1) return false;
+  const next = state.runner_layout[layoutIdx + 1];
+  if (next?.type === "runner") {
+    return moveItemInArray(state.runner_layout, layoutIdx, layoutIdx + 1);
+  }
+  if (next?.type === "group") {
+    return insertRunnerIntoGroup(rid, next.id, 0);
+  }
+  return false;
+}
+
+function moveGroupInLayout(gid, direction) {
+  const layoutIdx = findLayoutIndexByGroupId(gid);
+  if (layoutIdx < 0) return false;
+  const target = direction < 0 ? layoutIdx - 1 : layoutIdx + 1;
+  return moveItemInArray(state.runner_layout, layoutIdx, target);
+}
+
+function removeGroupAndUngroupRunners(gid) {
+  const group = findGroupById(gid);
+  if (!group) return false;
+  const groupLayoutIdx = findLayoutIndexByGroupId(gid);
+  const members = [...(group.runner_ids || [])];
+
+  state.runner_groups = state.runner_groups.filter((g) => g.id !== gid);
+  state.runner_layout = state.runner_layout.filter((item) => !(item?.type === "group" && item?.id === gid));
+
+  if (groupLayoutIdx >= 0) {
+    const inserts = members.map((rid) => ({ type: "runner", id: rid }));
+    state.runner_layout.splice(groupLayoutIdx, 0, ...inserts);
+  } else {
+    members.forEach((rid) => state.runner_layout.push({ type: "runner", id: rid }));
+  }
+  delete runtime.groupStatus[gid];
+  normalizeRunnerStructureState();
   return true;
 }
 
@@ -1278,7 +1563,11 @@ function renderNotifySection() {
 }
 
 function renderRunnerSection() {
-  const count = state.runners.length;
+  normalizeRunnerStructureState();
+  const runnerCount = state.runners.length;
+  const topLevelCount = state.runner_layout.length;
+  const hasGroupInternalMoves = state.runner_groups.some((g) => (g.runner_ids || []).length > 1);
+  const canSort = topLevelCount > 1 || hasGroupInternalMoves;
   const title = el("runnerSectionTitle");
   const toggle = el("runnerSectionToggle");
   const body = el("runnerSectionBody");
@@ -1286,7 +1575,7 @@ function renderRunnerSection() {
 
   if (title) {
     const base = t("runners_title");
-    title.textContent = count > 0 ? `${base} (${count})` : base;
+    title.textContent = runnerCount > 0 ? `${base} (${runnerCount})` : base;
   }
   if (toggle) {
     toggle.textContent = ui.runnerSectionCollapsed ? "+" : "-";
@@ -1294,12 +1583,12 @@ function renderRunnerSection() {
   if (body) {
     body.classList.toggle("hidden", ui.runnerSectionCollapsed);
   }
-  if (count <= 1 && ui.runnerSortMode) {
+  if (!canSort && ui.runnerSortMode) {
     ui.runnerSortMode = false;
     saveUIState();
   }
   if (sortBtn) {
-    sortBtn.classList.toggle("hidden", count <= 1);
+    sortBtn.classList.toggle("hidden", !canSort);
   }
   syncSortModeButtons();
 }
@@ -1392,6 +1681,7 @@ function caseStateOptions(selected) {
 }
 
 function collectState() {
+  normalizeRunnerStructureState();
   return {
     notify_profiles: state.notify_profiles.map((np) => ({
       id: np.id,
@@ -1418,6 +1708,15 @@ function collectState() {
       notify_profile_ids: r.notify_profile_ids || [],
       notify_profile_updates_only: r.notify_profile_updates_only || [],
       cases: r.cases.map((c) => ({ id: c.id, pattern: c.pattern, message_template: c.message_template, state: c.state || "" })),
+    })),
+    runner_groups: state.runner_groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      runner_ids: [...(g.runner_ids || [])],
+    })),
+    runner_layout: state.runner_layout.map((item) => ({
+      type: item.type === "group" ? "group" : "runner",
+      id: item.id,
     })),
   };
 }
@@ -1466,6 +1765,20 @@ function setFromState(st) {
     _collapsed: true,
     _isNew: false,
   }));
+  state.runner_groups = (st.runner_groups ?? []).map((g) => ({
+    id: g.id ?? `group_${uuidFallback()}`,
+    name: g.name ?? t("new_group_default_name"),
+    runner_ids: Array.isArray(g.runner_ids) ? g.runner_ids.slice() : [],
+    _collapsed: true,
+  }));
+  state.runner_layout = (st.runner_layout ?? []).map((item) => ({
+    type: String(item?.type || "").toLowerCase() === "group" ? "group" : "runner",
+    id: item?.id ?? "",
+  }));
+  if (!Array.isArray(st.runner_layout) || st.runner_layout.length === 0) {
+    state.runner_layout = state.runners.map((r) => ({ type: "runner", id: r.id }));
+  }
+  normalizeRunnerStructureState();
   syncSavedRunnerSignatures();
 
   syncSortModeButtons();
@@ -1764,14 +2077,36 @@ function renderCasesForRunner(rid) {
   });
 }
 
+function isGroupStatusActive(groupState) {
+  const status = String(groupState?.status || "");
+  return status === "started" || status === "running" || status === "stopping";
+}
+
+function groupStateText(groupState) {
+  if (!groupState || !groupState.status) return "";
+  const status = String(groupState.status || "");
+  const done = Math.max(0, Number(groupState.completed_count || 0));
+  const total = Math.max(0, Number(groupState.total_count || 0));
+  const runner = String(groupState.current_runner_id || "-");
+  if (status === "started" || status === "running") {
+    return t("group_state_running", { done, total, runner });
+  }
+  if (status === "stopping") return t("group_state_stopping");
+  if (status === "finished") return t("group_state_finished", { done, total });
+  if (status === "error") return t("group_state_error", { err: groupState.error || "unknown" });
+  if (status === "stopped") return t("group_state_stopped");
+  return status;
+}
+
 function renderRunners() {
+  normalizeRunnerStructureState();
   const wrap = el("runners");
   wrap.innerHTML = "";
   renderRunnerSection();
   refreshAllRunnerDirtyStates();
   const cloneBlockedByUnsaved = hasUnsavedLocalChanges();
 
-  state.runners.forEach((r, idx) => {
+  const appendRunnerCard = (container, r, moveConfig) => {
     const rt = runtime.status[r.id] || {};
     const running = !!rt.running;
     const scheduled = !!rt.scheduled;
@@ -1821,7 +2156,6 @@ function renderRunners() {
       : (isLocked
         ? `disabled title="${escapeHtml(t("lock_active_title"))}"`
         : `disabled title="${escapeHtml(t("clone_needs_saved_title"))}"`);
-    const runDisabled = !isActive && (isRunnerCommandMissing(r) || isDirty || saveBlocked);
     const runDisabledAttr = (!isActive && isRunnerCommandMissing(r))
       ? `disabled title="${escapeHtml(t("cmd_missing_reason"))}"`
       : (!isActive && (isDirty || saveBlocked))
@@ -1829,124 +2163,128 @@ function renderRunners() {
         : "";
     const lockAttr = isLocked ? "disabled" : "";
     const removeDisabledAttr = isLocked ? `disabled title="${escapeHtml(t("lock_active_title"))}"` : "";
+    const upDisabled = !!moveConfig.moveUpDisabled || isLocked;
+    const downDisabled = !!moveConfig.moveDownDisabled || isLocked;
+    const moveUpTitle = isLocked ? t("lock_active_title") : t("move_up");
+    const moveDownTitle = isLocked ? t("lock_active_title") : t("move_down");
 
-	    const div = document.createElement("div");
-	    div.className = `runner${isSaveableDirty ? " is-dirty" : ""}`;
-	    div.dataset.runnerId = r.id;
-	    div.innerHTML = `
+    const div = document.createElement("div");
+    div.className = `runner${isSaveableDirty ? " is-dirty" : ""}`;
+    div.dataset.runnerId = r.id;
+    div.innerHTML = `
       <div class="runnerHead">
-	          <div class="runnerIdentity">
-	          <div class="runnerTitleRow">
-	            <span class="toggle" data-toggle="${r.id}">${r._collapsed ? "+" : "-"}</span>
-		            <input data-name="${r.id}" value="${escapeHtml(r.name)}" placeholder="${escapeHtml(t("runner_placeholder"))}" ${lockAttr} />
-	            <span class="pill runnerElapsed ${showElapsed ? "" : "hidden"}" data-runner-elapsed="${r.id}">${showElapsed ? `⏱ ${escapeHtml(elapsedText)}` : ""}</span>
-	            <span class="pill runnerRunInfo ${showRunInfo ? "" : "hidden"}">${showRunInfo ? escapeHtml(runInfoText) : ""}</span>
-	          </div>
-	          <div class="runnerState">
-	            <span class="small runnerStateText">${escapeHtml(runnerStateText)}</span>
-	          </div>
-	        </div>
-	        <div class="runnerActions row gap wrapline center">
-		          <div class="row gap center reorderControls ${ui.runnerSortMode ? "" : "hidden"}">
-		            <button class="btn" data-move-runner-up="${r.id}" ${(idx === 0 || isLocked) ? "disabled" : ""} title="${escapeHtml(isLocked ? t("lock_active_title") : t("move_up"))}">↑</button>
-		            <button class="btn" data-move-runner-down="${r.id}" ${(idx === state.runners.length - 1 || isLocked) ? "disabled" : ""} title="${escapeHtml(isLocked ? t("lock_active_title") : t("move_down"))}">↓</button>
-		          </div>
-		          <button class="btn ${isActive ? "danger" : "primary"}" data-runstop="${r.id}" ${runDisabledAttr}>
-		            ${isActive ? "■ Stop" : "▶ Run"}
-		          </button>
-		          <button class="btn primary runnerSaveBtn ${isDirty ? "dirty" : ""} ${saveBlocked ? "invalid" : ""}" data-save-name="${r.id}" ${isDirty ? "" : `disabled title="${escapeHtml(t("no_changes"))}"`}>${escapeHtml(t("save"))}</button>
-		          <button class="btn" data-clone-runner="${r.id}" ${cloneDisabledAttr}>Clone</button>
-		          <button class="btn danger" data-delrunner="${r.id}" ${removeDisabledAttr}>${escapeHtml(t("remove"))}</button>
-		        </div>
-		      </div>
+        <div class="runnerIdentity">
+          <div class="runnerTitleRow">
+            <span class="toggle" data-toggle="${r.id}">${r._collapsed ? "+" : "-"}</span>
+            <input data-name="${r.id}" value="${escapeHtml(r.name)}" placeholder="${escapeHtml(t("runner_placeholder"))}" ${lockAttr} />
+            <span class="pill runnerElapsed ${showElapsed ? "" : "hidden"}" data-runner-elapsed="${r.id}">${showElapsed ? `⏱ ${escapeHtml(elapsedText)}` : ""}</span>
+            <span class="pill runnerRunInfo ${showRunInfo ? "" : "hidden"}">${showRunInfo ? escapeHtml(runInfoText) : ""}</span>
+          </div>
+          <div class="runnerState">
+            <span class="small runnerStateText">${escapeHtml(runnerStateText)}</span>
+          </div>
+        </div>
+        <div class="runnerActions row gap wrapline center">
+          <div class="row gap center reorderControls ${ui.runnerSortMode ? "" : "hidden"}">
+            <button class="btn" data-move-runner-up="${r.id}" ${upDisabled ? "disabled" : ""} title="${escapeHtml(moveUpTitle)}">↑</button>
+            <button class="btn" data-move-runner-down="${r.id}" ${downDisabled ? "disabled" : ""} title="${escapeHtml(moveDownTitle)}">↓</button>
+          </div>
+          <button class="btn ${isActive ? "danger" : "primary"}" data-runstop="${r.id}" ${runDisabledAttr}>
+            ${isActive ? "■ Stop" : "▶ Run"}
+          </button>
+          <button class="btn primary runnerSaveBtn ${isDirty ? "dirty" : ""} ${saveBlocked ? "invalid" : ""}" data-save-name="${r.id}" ${isDirty ? "" : `disabled title="${escapeHtml(t("no_changes"))}"`}>${escapeHtml(t("save"))}</button>
+          <button class="btn" data-clone-runner="${r.id}" ${cloneDisabledAttr}>Clone</button>
+          <button class="btn danger" data-delrunner="${r.id}" ${removeDisabledAttr}>${escapeHtml(t("remove"))}</button>
+        </div>
+      </div>
 
       <div class="runnerBody ${r._collapsed ? "hidden" : ""}" data-body="${r.id}">
         <div class="runnerConfigGrid">
-	            <label class="runnerCommandBlock">
-	            <span>Command (bash -lc)</span>
-	            <textarea rows="7" data-command="${r.id}" ${lockAttr}>${escapeHtml(r.command)}</textarea>
-	          </label>
-	          <div class="runnerSettingsPanel">
-	            <div class="runnerSettingsSection">
-	              <span class="small runnerSectionTitle">${escapeHtml(t("notifications"))}</span>
-	              <div data-notify-checks="${r.id}" class="runnerNotifyChecks">
-	                ${state.notify_profiles.length === 0
-	                  ? `<span class="small" style="opacity:0.6;">${escapeHtml(t("no_services_available"))}</span>`
-	                  : state.notify_profiles.map((np) => {
-	                    const assigned = (r.notify_profile_ids || []).includes(np.id);
-	                    const onlyUpdates = assigned && (r.notify_profile_updates_only || []).includes(np.id);
-	                    return `
-	                      <div class="runnerNotifyRow">
-	                        <span class="runnerNotifyName">${escapeHtml(np.name)}</span>
-	                        <div class="row gap center runnerNotifyActions">
-		                          <button
-		                            class="btn ${assigned ? "primary" : ""}"
-		                            data-notify-toggle="${r.id}"
-		                            data-notify-profile="${np.id}"
-		                            title="${escapeHtml(assigned ? t("notify_on_title") : t("notify_off_title"))}"
-		                          >
-		                            ${escapeHtml(assigned ? t("on") : t("off_short"))}
-		                          </button>
-		                          <button
-		                            class="btn ${onlyUpdates ? "primary" : ""}"
-		                            data-notify-updates="${r.id}"
-		                            data-notify-profile="${np.id}"
-		                            ${assigned ? "" : `disabled title="${escapeHtml(t("enable_first"))}"`}
-		                            title="${escapeHtml(onlyUpdates ? t("updates_only_title_on") : t("updates_only_title_off"))}"
-		                          >
-		                            ${escapeHtml(t("updates_only"))}
-		                          </button>
-	                        </div>
-	                      </div>
-	                    `;
-	                  }).join("")}
-	              </div>
-	            </div>
+          <label class="runnerCommandBlock">
+            <span>Command (bash -lc)</span>
+            <textarea rows="7" data-command="${r.id}" ${lockAttr}>${escapeHtml(r.command)}</textarea>
+          </label>
+          <div class="runnerSettingsPanel">
+            <div class="runnerSettingsSection">
+              <span class="small runnerSectionTitle">${escapeHtml(t("notifications"))}</span>
+              <div data-notify-checks="${r.id}" class="runnerNotifyChecks">
+                ${state.notify_profiles.length === 0
+                  ? `<span class="small" style="opacity:0.6;">${escapeHtml(t("no_services_available"))}</span>`
+                  : state.notify_profiles.map((np) => {
+                    const assigned = (r.notify_profile_ids || []).includes(np.id);
+                    const onlyUpdates = assigned && (r.notify_profile_updates_only || []).includes(np.id);
+                    return `
+                      <div class="runnerNotifyRow">
+                        <span class="runnerNotifyName">${escapeHtml(np.name)}</span>
+                        <div class="row gap center runnerNotifyActions">
+                          <button
+                            class="btn ${assigned ? "primary" : ""}"
+                            data-notify-toggle="${r.id}"
+                            data-notify-profile="${np.id}"
+                            title="${escapeHtml(assigned ? t("notify_on_title") : t("notify_off_title"))}"
+                          >
+                            ${escapeHtml(assigned ? t("on") : t("off_short"))}
+                          </button>
+                          <button
+                            class="btn ${onlyUpdates ? "primary" : ""}"
+                            data-notify-updates="${r.id}"
+                            data-notify-profile="${np.id}"
+                            ${assigned ? "" : `disabled title="${escapeHtml(t("enable_first"))}"`}
+                            title="${escapeHtml(onlyUpdates ? t("updates_only_title_on") : t("updates_only_title_off"))}"
+                          >
+                            ${escapeHtml(t("updates_only"))}
+                          </button>
+                        </div>
+                      </div>
+                    `;
+                  }).join("")}
+              </div>
+            </div>
 
-	            <div class="runnerSettingsSection runnerLogButtons">
-	              <button class="btn ${r.logging_enabled ? "primary" : ""}" data-logging="${r.id}" title="${escapeHtml(isLocked ? t("lock_active_title") : t("logging_title"))}" ${lockAttr}>📄 Logging ${escapeHtml(r.logging_enabled ? t("logging_on") : t("logging_off"))}</button>
-	              <button class="btn" data-openlog="${r.id}">${escapeHtml(t("open_log"))}</button>
-	              <button class="btn danger" data-clearlog="${r.id}" ${lockAttr} title="${escapeHtml(isLocked ? t("lock_active_title") : t("clear_log"))}">${escapeHtml(t("clear_log"))}</button>
-	            </div>
+            <div class="runnerSettingsSection runnerLogButtons">
+              <button class="btn ${r.logging_enabled ? "primary" : ""}" data-logging="${r.id}" title="${escapeHtml(isLocked ? t("lock_active_title") : t("logging_title"))}" ${lockAttr}>📄 Logging ${escapeHtml(r.logging_enabled ? t("logging_on") : t("logging_off"))}</button>
+              <button class="btn" data-openlog="${r.id}">${escapeHtml(t("open_log"))}</button>
+              <button class="btn danger" data-clearlog="${r.id}" ${lockAttr} title="${escapeHtml(isLocked ? t("lock_active_title") : t("clear_log"))}">${escapeHtml(t("clear_log"))}</button>
+            </div>
 
-	            <div class="runnerSettingsSection">
-	              <span class="small runnerSectionTitle">${escapeHtml(t("scheduler"))}</span>
-	              <div class="grid3 runnerScheduleGrid">
-	                <label><span>${escapeHtml(t("hours"))}</span><select data-h="${r.id}" ${lockAttr}>${scheduleOptions(23)}</select></label>
-	                <label><span>${escapeHtml(t("minutes"))}</span><select data-m="${r.id}" ${lockAttr}>${scheduleOptions(59)}</select></label>
-	                <label><span>${escapeHtml(t("seconds"))}</span><select data-s="${r.id}" ${lockAttr}>${scheduleOptions(59)}</select></label>
-	              </div>
-	              <div class="runnerRunsWrap">
-	                <label><span>${escapeHtml(t("total_runs"))}</span><select data-runs="${r.id}" ${lockAttr}>${runsOptions()}</select></label>
-	              </div>
-	              <div class="grid3 runnerScheduleGrid" style="margin-top:10px;">
-	                <label>
-	                  <span>${escapeHtml(t("alert_cooldown"))}</span>
-	                  <select data-cooldown="${r.id}" ${lockAttr}>${cooldownOptions()}</select>
-	                </label>
-	                <label>
-	                  <span>${escapeHtml(t("escalation"))}</span>
-	                  <select data-escalate="${r.id}" ${lockAttr}>${escalationOptions()}</select>
-	                </label>
-	                <label>
-	                  <span>${escapeHtml(t("auto_pause"))}</span>
-	                  <select data-failpause="${r.id}" ${lockAttr}>${failurePauseOptions()}</select>
-	                </label>
-	              </div>
-	            </div>
+            <div class="runnerSettingsSection">
+              <span class="small runnerSectionTitle">${escapeHtml(t("scheduler"))}</span>
+              <div class="grid3 runnerScheduleGrid">
+                <label><span>${escapeHtml(t("hours"))}</span><select data-h="${r.id}" ${lockAttr}>${scheduleOptions(23)}</select></label>
+                <label><span>${escapeHtml(t("minutes"))}</span><select data-m="${r.id}" ${lockAttr}>${scheduleOptions(59)}</select></label>
+                <label><span>${escapeHtml(t("seconds"))}</span><select data-s="${r.id}" ${lockAttr}>${scheduleOptions(59)}</select></label>
+              </div>
+              <div class="runnerRunsWrap">
+                <label><span>${escapeHtml(t("total_runs"))}</span><select data-runs="${r.id}" ${lockAttr}>${runsOptions()}</select></label>
+              </div>
+              <div class="grid3 runnerScheduleGrid" style="margin-top:10px;">
+                <label>
+                  <span>${escapeHtml(t("alert_cooldown"))}</span>
+                  <select data-cooldown="${r.id}" ${lockAttr}>${cooldownOptions()}</select>
+                </label>
+                <label>
+                  <span>${escapeHtml(t("escalation"))}</span>
+                  <select data-escalate="${r.id}" ${lockAttr}>${escalationOptions()}</select>
+                </label>
+                <label>
+                  <span>${escapeHtml(t("auto_pause"))}</span>
+                  <select data-failpause="${r.id}" ${lockAttr}>${failurePauseOptions()}</select>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
 
-	        <div class="runnerSection">
-	          <div class="runnerSectionHead">
-	            <h3>${escapeHtml(t("cases"))}</h3>
-	          </div>
-	          <p class="hint">${escapeHtml(t("cases_hint"))}</p>
-		          <div data-cases="${r.id}"></div>
-		          <div class="row" style="margin-top:10px; justify-content:flex-end;">
-		            <button class="btn" data-addcase="${r.id}" ${lockAttr} title="${escapeHtml(isLocked ? t("lock_active_title") : t("add_case_title"))}">${escapeHtml(t("add_case"))}</button>
-		          </div>
-		        </div>
+        <div class="runnerSection">
+          <div class="runnerSectionHead">
+            <h3>${escapeHtml(t("cases"))}</h3>
+          </div>
+          <p class="hint">${escapeHtml(t("cases_hint"))}</p>
+          <div data-cases="${r.id}"></div>
+          <div class="row" style="margin-top:10px; justify-content:flex-end;">
+            <button class="btn" data-addcase="${r.id}" ${lockAttr} title="${escapeHtml(isLocked ? t("lock_active_title") : t("add_case_title"))}">${escapeHtml(t("add_case"))}</button>
+          </div>
+        </div>
 
         <div class="runnerSection">
           <div class="runnerSectionHead">
@@ -1957,7 +2295,7 @@ function renderRunners() {
         </div>
       </div>
     `;
-    wrap.appendChild(div);
+    container.appendChild(div);
 
     div.querySelector(`[data-h="${r.id}"]`).value = String(r.schedule.hours);
     div.querySelector(`[data-m="${r.id}"]`).value = String(r.schedule.minutes);
@@ -1976,56 +2314,169 @@ function renderRunners() {
     ensureSelectValue(
       div.querySelector(`[data-failpause="${r.id}"]`),
       Number(r.failure_pause_threshold ?? 5),
-      Number(r.failure_pause_threshold ?? 5) === 0
-        ? t("off")
-        : t("failures", { n: Number(r.failure_pause_threshold ?? 5) }),
+      Number(r.failure_pause_threshold ?? 5) === 0 ? t("off") : t("failures", { n: Number(r.failure_pause_threshold ?? 5) }),
     );
 
     renderCasesForRunner(r.id);
-
     const out = runnerOutputEl(r.id);
     if (out) out.textContent = runtime.outputs[r.id] || (rt.tail || "");
+  };
 
+  state.runner_layout.forEach((item, layoutIdx) => {
+    if (item.type === "runner") {
+      const r = findRunnerById(item.id);
+      if (!r) return;
+      appendRunnerCard(wrap, r, {
+        moveUpDisabled: layoutIdx <= 0,
+        moveDownDisabled: layoutIdx >= state.runner_layout.length - 1,
+      });
+      return;
+    }
+
+    if (item.type === "group") {
+      const group = findGroupById(item.id);
+      if (!group) return;
+      const groupState = runtime.groupStatus[group.id] || {};
+      const groupActive = isGroupStatusActive(groupState);
+      const groupDiv = document.createElement("div");
+      groupDiv.className = "groupCard";
+      groupDiv.dataset.groupId = group.id;
+      groupDiv.innerHTML = `
+        <div class="groupHead">
+          <div class="groupTitleWrap">
+            <span class="toggle" data-toggle-group="${group.id}">${group._collapsed ? "+" : "-"}</span>
+            <input data-group-name="${group.id}" value="${escapeHtml(group.name)}" placeholder="${escapeHtml(t("group_placeholder"))}" />
+            <span class="small groupStateText">${escapeHtml(groupStateText(groupState))}</span>
+          </div>
+          <div class="row gap center wrapline groupActions">
+            <div class="row gap center reorderControls ${ui.runnerSortMode ? "" : "hidden"}">
+              <button class="btn" data-move-group-up="${group.id}" ${layoutIdx <= 0 ? "disabled" : ""} title="${escapeHtml(t("move_up"))}">↑</button>
+              <button class="btn" data-move-group-down="${group.id}" ${layoutIdx >= state.runner_layout.length - 1 ? "disabled" : ""} title="${escapeHtml(t("move_down"))}">↓</button>
+            </div>
+            <button class="btn ${groupActive ? "danger" : "primary"}" data-group-runstop="${group.id}">
+              ${escapeHtml(groupActive ? t("group_stop") : t("group_run"))}
+            </button>
+            <button class="btn danger" data-delgroup="${group.id}">${escapeHtml(t("remove"))}</button>
+          </div>
+        </div>
+        <div class="groupBody ${group._collapsed ? "hidden" : ""}" data-group-body="${group.id}"></div>
+      `;
+      wrap.appendChild(groupDiv);
+      const groupBody = groupDiv.querySelector(`[data-group-body="${group.id}"]`);
+      const members = (group.runner_ids || [])
+        .map((rid) => findRunnerById(rid))
+        .filter((r) => !!r);
+      if (!members.length) {
+        const empty = document.createElement("p");
+        empty.className = "hint";
+        empty.textContent = t("group_empty");
+        groupBody?.appendChild(empty);
+      } else {
+        members.forEach((runner) => {
+          appendRunnerCard(groupBody, runner, {
+            moveUpDisabled: false,
+            moveDownDisabled: false,
+          });
+        });
+      }
+      return;
+    }
   });
 
-  wrap.querySelectorAll(`[data-toggle]`).forEach((t) => {
-    t.addEventListener("click", () => {
-      const rid = t.getAttribute("data-toggle");
-      const r = state.runners.find((x) => x.id === rid);
+  wrap.querySelectorAll(`[data-toggle]`).forEach((toggleEl) => {
+    toggleEl.addEventListener("click", () => {
+      const rid = toggleEl.getAttribute("data-toggle");
+      const r = findRunnerById(rid);
       if (!r) return;
       r._collapsed = !r._collapsed;
       document.querySelector(`[data-body="${rid}"]`)?.classList.toggle("hidden", r._collapsed);
-      t.textContent = r._collapsed ? "+" : "-";
+      toggleEl.textContent = r._collapsed ? "+" : "-";
+    });
+  });
+
+  wrap.querySelectorAll(`[data-toggle-group]`).forEach((toggleEl) => {
+    toggleEl.addEventListener("click", () => {
+      const gid = toggleEl.getAttribute("data-toggle-group");
+      const g = findGroupById(gid);
+      if (!g) return;
+      g._collapsed = !g._collapsed;
+      document.querySelector(`[data-group-body="${gid}"]`)?.classList.toggle("hidden", g._collapsed);
+      toggleEl.textContent = g._collapsed ? "+" : "-";
+    });
+  });
+
+  wrap.querySelectorAll("[data-group-name]").forEach((inp) => {
+    const saveGroup = async () => {
+      const gid = inp.getAttribute("data-group-name");
+      const g = findGroupById(gid);
+      if (!g) return;
+      g.name = inp.value;
+      normalizeRunnerStructureState();
+      renderRunners();
+      await autoSave({ skipValidation: true });
+    };
+    inp.addEventListener("change", saveGroup);
+    inp.addEventListener("blur", saveGroup);
+  });
+
+  wrap.querySelectorAll("[data-move-group-up]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const gid = btn.getAttribute("data-move-group-up");
+      if (!moveGroupInLayout(gid, -1)) return;
+      renderRunners();
+      await autoSave({ skipValidation: true });
+    });
+  });
+
+  wrap.querySelectorAll("[data-move-group-down]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const gid = btn.getAttribute("data-move-group-down");
+      if (!moveGroupInLayout(gid, 1)) return;
+      renderRunners();
+      await autoSave({ skipValidation: true });
+    });
+  });
+
+  wrap.querySelectorAll("[data-delgroup]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const gid = btn.getAttribute("data-delgroup");
+      const g = findGroupById(gid);
+      if (!g) return;
+      const name = g.name || gid;
+      if (!confirm(t("confirm_delete_group", { name }))) return;
+      if (!removeGroupAndUngroupRunners(gid)) return;
+      renderRunners();
+      const saved = await autoSave({ skipValidation: true });
+      if (saved) {
+        hulkFlash("success", t("group_removed", { name }), 3200);
+        logHulk("success", t("group_removed", { name }));
+      }
     });
   });
 
   wrap.querySelectorAll("[data-move-runner-up]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const rid = btn.getAttribute("data-move-runner-up");
-      const idx = state.runners.findIndex((x) => x.id === rid);
-      if (!moveItemInArray(state.runners, idx, idx - 1)) return;
+      if (!moveRunnerUpInStructure(rid)) return;
       renderRunners();
-      await autoSave();
+      await autoSave({ skipValidation: true });
     });
   });
 
   wrap.querySelectorAll("[data-move-runner-down]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const rid = btn.getAttribute("data-move-runner-down");
-      const idx = state.runners.findIndex((x) => x.id === rid);
-      if (!moveItemInArray(state.runners, idx, idx + 1)) return;
+      if (!moveRunnerDownInStructure(rid)) return;
       renderRunners();
-      await autoSave();
+      await autoSave({ skipValidation: true });
     });
   });
 
   wrap.querySelectorAll(`[data-name]`).forEach((inp) => {
     inp.addEventListener("input", () => {
       const rid = inp.getAttribute("data-name");
-      const r = state.runners.find((x) => x.id === rid);
-      if (r) {
-        r.name = inp.value;
-      }
+      const r = findRunnerById(rid);
+      if (r) r.name = inp.value;
       refreshRunnerDirtyState(rid);
       syncRunnerDirtyButton(rid);
     });
@@ -2034,10 +2485,8 @@ function renderRunners() {
   wrap.querySelectorAll(`[data-command]`).forEach((ta) => {
     ta.addEventListener("input", () => {
       const rid = ta.getAttribute("data-command");
-      const r = state.runners.find((x) => x.id === rid);
-      if (r) {
-        r.command = ta.value;
-      }
+      const r = findRunnerById(rid);
+      if (r) r.command = ta.value;
       refreshRunnerDirtyState(rid);
       syncRunnerDirtyButton(rid);
       syncRunnerRunButton(rid);
@@ -2053,12 +2502,11 @@ function renderRunners() {
   wrap.querySelectorAll(`[data-logging]`).forEach((btn) => {
     btn.addEventListener("click", async () => {
       const rid = btn.getAttribute("data-logging");
-      const r = state.runners.find((x) => x.id === rid);
-      if (r) {
-        r.logging_enabled = !r.logging_enabled;
-        renderRunners();
-        await autoSave();
-      }
+      const r = findRunnerById(rid);
+      if (!r) return;
+      r.logging_enabled = !r.logging_enabled;
+      renderRunners();
+      await autoSave();
     });
   });
 
@@ -2073,7 +2521,6 @@ function renderRunners() {
     btn.addEventListener("click", async () => {
       const rid = btn.getAttribute("data-clearlog");
       if (!confirm(t("confirm_clear_log"))) return;
-
       try {
         await apiFetch(`/api/log/${encodeURIComponent(rid)}`, { method: "DELETE" });
         logHulk("success", t("log_cleared_log", { rid }));
@@ -2088,7 +2535,7 @@ function renderRunners() {
   wrap.querySelectorAll(`[data-h],[data-m],[data-s]`).forEach((sel) => {
     sel.addEventListener("change", () => {
       const rid = sel.getAttribute("data-h") || sel.getAttribute("data-m") || sel.getAttribute("data-s");
-      const r = state.runners.find((x) => x.id === rid);
+      const r = findRunnerById(rid);
       if (!r) return;
       const h = Number(document.querySelector(`[data-h="${rid}"]`).value);
       const m = Number(document.querySelector(`[data-m="${rid}"]`).value);
@@ -2104,7 +2551,7 @@ function renderRunners() {
   wrap.querySelectorAll(`[data-runs]`).forEach((sel) => {
     sel.addEventListener("change", () => {
       const rid = sel.getAttribute("data-runs");
-      const r = state.runners.find((x) => x.id === rid);
+      const r = findRunnerById(rid);
       if (!r) return;
       r.max_runs = Number(sel.value);
       refreshRunnerDirtyState(rid);
@@ -2115,7 +2562,7 @@ function renderRunners() {
   wrap.querySelectorAll(`[data-cooldown]`).forEach((sel) => {
     sel.addEventListener("change", () => {
       const rid = sel.getAttribute("data-cooldown");
-      const r = state.runners.find((x) => x.id === rid);
+      const r = findRunnerById(rid);
       if (!r) return;
       r.alert_cooldown_s = Math.max(0, Number(sel.value || 0));
       refreshRunnerDirtyState(rid);
@@ -2126,7 +2573,7 @@ function renderRunners() {
   wrap.querySelectorAll(`[data-escalate]`).forEach((sel) => {
     sel.addEventListener("change", () => {
       const rid = sel.getAttribute("data-escalate");
-      const r = state.runners.find((x) => x.id === rid);
+      const r = findRunnerById(rid);
       if (!r) return;
       r.alert_escalation_s = Math.max(0, Number(sel.value || 0));
       refreshRunnerDirtyState(rid);
@@ -2137,7 +2584,7 @@ function renderRunners() {
   wrap.querySelectorAll(`[data-failpause]`).forEach((sel) => {
     sel.addEventListener("change", () => {
       const rid = sel.getAttribute("data-failpause");
-      const r = state.runners.find((x) => x.id === rid);
+      const r = findRunnerById(rid);
       if (!r) return;
       r.failure_pause_threshold = Math.max(0, Number(sel.value || 0));
       refreshRunnerDirtyState(rid);
@@ -2149,9 +2596,8 @@ function renderRunners() {
     btn.addEventListener("click", async () => {
       const rid = btn.getAttribute("data-notify-toggle");
       const npid = btn.getAttribute("data-notify-profile");
-      const r = state.runners.find((x) => x.id === rid);
+      const r = findRunnerById(rid);
       if (!r || !npid) return;
-
       const selected = new Set(r.notify_profile_ids || []);
       const updatesOnly = new Set(r.notify_profile_updates_only || []);
       if (selected.has(npid)) {
@@ -2162,7 +2608,6 @@ function renderRunners() {
       }
       r.notify_profile_ids = Array.from(selected);
       r.notify_profile_updates_only = Array.from(updatesOnly);
-
       refreshRunnerDirtyState(rid);
       renderRunners();
       await autoSave();
@@ -2173,18 +2618,13 @@ function renderRunners() {
     btn.addEventListener("click", async () => {
       const rid = btn.getAttribute("data-notify-updates");
       const npid = btn.getAttribute("data-notify-profile");
-      const r = state.runners.find((x) => x.id === rid);
+      const r = findRunnerById(rid);
       if (!r || !npid) return;
       if (!(r.notify_profile_ids || []).includes(npid)) return;
-
       const updatesOnly = new Set(r.notify_profile_updates_only || []);
-      if (updatesOnly.has(npid)) {
-        updatesOnly.delete(npid);
-      } else {
-        updatesOnly.add(npid);
-      }
+      if (updatesOnly.has(npid)) updatesOnly.delete(npid);
+      else updatesOnly.add(npid);
       r.notify_profile_updates_only = Array.from(updatesOnly);
-
       refreshRunnerDirtyState(rid);
       renderRunners();
       await autoSave();
@@ -2194,7 +2634,7 @@ function renderRunners() {
   wrap.querySelectorAll(`[data-addcase]`).forEach((btn) => {
     btn.addEventListener("click", async () => {
       const rid = btn.getAttribute("data-addcase");
-      const r = state.runners.find((x) => x.id === rid);
+      const r = findRunnerById(rid);
       if (!r) return;
       r.cases.push({ id: `case_${uuidFallback()}`, pattern: "", message_template: "" });
       refreshRunnerDirtyState(rid);
@@ -2207,14 +2647,13 @@ function renderRunners() {
   wrap.querySelectorAll(`[data-delrunner]`).forEach((btn) => {
     btn.addEventListener("click", async () => {
       const rid = btn.getAttribute("data-delrunner");
-      const r = state.runners.find((x) => x.id === rid);
+      const r = findRunnerById(rid);
       const name = r ? r.name : "Runner";
-
-      if (!confirm(t("confirm_delete_runner", { name }))) {
-        return;
-      }
-
+      if (!confirm(t("confirm_delete_runner", { name }))) return;
       state.runners = state.runners.filter((x) => x.id !== rid);
+      removeRunnerFromGroups(rid);
+      removeRunnerFromLayout(rid);
+      normalizeRunnerStructureState();
       delete runtime.status[rid];
       delete runtime.outputs[rid];
       renderRunners();
@@ -2231,101 +2670,143 @@ function renderRunners() {
       const rid = btn.getAttribute("data-runstop");
       const rt = runtime.status[rid] || {};
       const isActive = rt.running || rt.scheduled;
-
       try {
-	        if (isActive) {
-	          // Stop action
-	          await apiPost("/api/stop", { runner_id: rid });
-	          hulkFlash("info", t("stop_signal_sent", { rid }), 3000);
-	          logHulk("info", t("stop_signal_sent", { rid }));
-	        } else {
-          // Run action
+        if (isActive) {
+          await apiPost("/api/stop", { runner_id: rid });
+          hulkFlash("info", t("stop_signal_sent", { rid }), 3000);
+          logHulk("info", t("stop_signal_sent", { rid }));
+        } else {
           if (!validateStateBeforePersist()) return;
-	          const r = state.runners.find((x) => x.id === rid);
-	          if (ui.dirtyRunners.has(rid) || isRunnerSaveBlocked(r)) {
-	            hulkFlash("info", t("run_blocked_edit", { rid }), 4200);
-	            logHulk("info", t("run_blocked_edit", { rid }));
-	            syncRunnerRunButton(rid);
-	            syncRunnerDirtyButton(rid);
-	            return;
-	          }
-	          if (isRunnerCommandMissing(r)) {
-	            hulkFlash("error", t("run_not_possible_missing_cmd", { rid }));
-	            logHulk("error", t("run_not_possible_missing_cmd", { rid }));
-	            syncRunnerRunButton(rid);
-	            syncRunnerDirtyButton(rid);
-	            return;
-	          }
+          const r = findRunnerById(rid);
+          if (ui.dirtyRunners.has(rid) || isRunnerSaveBlocked(r)) {
+            hulkFlash("info", t("run_blocked_edit", { rid }), 4200);
+            logHulk("info", t("run_blocked_edit", { rid }));
+            syncRunnerRunButton(rid);
+            syncRunnerDirtyButton(rid);
+            return;
+          }
+          if (isRunnerCommandMissing(r)) {
+            hulkFlash("error", t("run_not_possible_missing_cmd", { rid }));
+            logHulk("error", t("run_not_possible_missing_cmd", { rid }));
+            syncRunnerRunButton(rid);
+            syncRunnerDirtyButton(rid);
+            return;
+          }
           runtime.outputs[rid] = "";
           const out = runnerOutputEl(rid);
-	          if (out) out.textContent = "";
-	          await apiPost("/api/run", { state: collectState(), runner_id: rid });
-	          hulkFlash("success", t("runner_starting", { rid }), 3200);
-	          logHulk("success", t("runner_starting", { rid }));
-	        }
-	      } catch (e) {
-	        const msg = e?.message || String(e);
-	        hulkFlash("error", t("runstop_failed", { rid, err: msg }));
-	        logHulk("error", t("runstop_failed", { rid, err: msg }));
-	      }
-	    });
-	  });
+          if (out) out.textContent = "";
+          await apiPost("/api/run", { state: collectState(), runner_id: rid });
+          hulkFlash("success", t("runner_starting", { rid }), 3200);
+          logHulk("success", t("runner_starting", { rid }));
+        }
+      } catch (e) {
+        const msg = e?.message || String(e);
+        hulkFlash("error", t("runstop_failed", { rid, err: msg }));
+        logHulk("error", t("runstop_failed", { rid, err: msg }));
+      }
+    });
+  });
+
+  wrap.querySelectorAll(`[data-group-runstop]`).forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const gid = btn.getAttribute("data-group-runstop");
+      const group = findGroupById(gid);
+      if (!group) return;
+      const name = group.name || gid;
+      const groupState = runtime.groupStatus[gid] || {};
+      const isActive = isGroupStatusActive(groupState);
+      try {
+        if (isActive) {
+          await apiPost("/api/group/stop", { group_id: gid });
+          hulkFlash("info", t("group_stop_sent", { name }), 3200);
+          logHulk("info", t("group_stop_sent", { name }));
+          return;
+        }
+
+        if (!validateStateBeforePersist()) return;
+        if (!(group.runner_ids || []).length) {
+          hulkFlash("error", t("group_empty"));
+          return;
+        }
+        for (const rid of group.runner_ids || []) {
+          const r = findRunnerById(rid);
+          if (!r) continue;
+          if (ui.dirtyRunners.has(rid) || isRunnerSaveBlocked(r)) {
+            hulkFlash("info", t("run_blocked_edit", { rid }), 4200);
+            logHulk("info", t("run_blocked_edit", { rid }));
+            return;
+          }
+          if (isRunnerCommandMissing(r)) {
+            hulkFlash("error", t("run_not_possible_missing_cmd", { rid }));
+            logHulk("error", t("run_not_possible_missing_cmd", { rid }));
+            return;
+          }
+        }
+        await apiPost("/api/group/run", { state: collectState(), group_id: gid });
+        hulkFlash("success", t("group_run_starting", { name }), 3200);
+        logHulk("success", t("group_run_starting", { name }));
+      } catch (e) {
+        const msg = e?.message || String(e);
+        if (isActive) {
+          hulkFlash("error", t("group_stop_failed", { name, err: msg }));
+          logHulk("error", t("group_stop_failed", { name, err: msg }));
+        } else {
+          hulkFlash("error", t("group_run_failed", { name, err: msg }));
+          logHulk("error", t("group_run_failed", { name, err: msg }));
+        }
+      }
+    });
+  });
 
   wrap.querySelectorAll(`[data-copy-output]`).forEach((btn) => {
     btn.addEventListener("click", async () => {
       const rid = btn.getAttribute("data-copy-output");
       const out = runnerOutputEl(rid);
       if (!out) return;
-
       const text = out.textContent || "";
-	      try {
-	        const copied = await copyText(text);
-	        if (!copied) {
-	          throw new Error(t("clipboard_blocked"));
-	        }
-	        const originalText = btn.textContent;
-	        btn.textContent = t("copied");
-	        hulkFlash("success", t("output_copied", { rid }), 2600);
-	        setTimeout(() => {
-	          btn.textContent = originalText;
-	        }, 2000);
-	      } catch (e) {
-	        logHulk("error", t("copy_failed", { err: e.message }));
-	        hulkFlash("error", t("copy_failed", { err: e.message }));
-	      }
-	    });
-	  });
+      try {
+        const copied = await copyText(text);
+        if (!copied) throw new Error(t("clipboard_blocked"));
+        const originalText = btn.textContent;
+        btn.textContent = t("copied");
+        hulkFlash("success", t("output_copied", { rid }), 2600);
+        setTimeout(() => {
+          btn.textContent = originalText;
+        }, 2000);
+      } catch (e) {
+        logHulk("error", t("copy_failed", { err: e.message }));
+        hulkFlash("error", t("copy_failed", { err: e.message }));
+      }
+    });
+  });
 
   wrap.querySelectorAll(`[data-clone-runner]`).forEach((btn) => {
     btn.addEventListener("click", async () => {
       const rid = btn.getAttribute("data-clone-runner");
-      const r = state.runners.find((x) => x.id === rid);
+      const r = findRunnerById(rid);
       if (!r) return;
-
-	      if (hasUnsavedLocalChanges() || !!r._isNew || ui.dirtyRunners.has(rid) || isRunnerSaveBlocked(r)) {
-	        const msg = t("clone_blocked");
-	        hulkFlash("info", msg, 4200);
-	        logHulk("info", msg);
-	        renderRunners();
+      if (hasUnsavedLocalChanges() || !!r._isNew || ui.dirtyRunners.has(rid) || isRunnerSaveBlocked(r)) {
+        const msg = t("clone_blocked");
+        hulkFlash("info", msg, 4200);
+        logHulk("info", msg);
+        renderRunners();
         renderNotifyProfiles();
         return;
       }
-
       try {
         const res = await apiPost("/api/clone_runner", { runner_id: rid });
-	        const st = await apiGet("/api/state");
-	        setFromState(st);
-	        const sourceName = r.name || rid;
-	        const targetName = res?.cloned_name ? ` -> "${res.cloned_name}"` : "";
-	        hulkFlash("success", t("runner_cloned", { source: sourceName, target: targetName }), 3600);
-	        logHulk("success", t("runner_cloned", { source: sourceName, target: targetName }));
-	      } catch (e) {
-	        hulkFlash("error", t("clone_failed", { err: e.message }));
-	        logHulk("error", t("clone_failed", { err: e.message }));
-	      }
-	    });
-	  });
-
+        const st = await apiGet("/api/state");
+        setFromState(st);
+        const sourceName = r.name || rid;
+        const targetName = res?.cloned_name ? ` -> "${res.cloned_name}"` : "";
+        hulkFlash("success", t("runner_cloned", { source: sourceName, target: targetName }), 3600);
+        logHulk("success", t("runner_cloned", { source: sourceName, target: targetName }));
+      } catch (e) {
+        hulkFlash("error", t("clone_failed", { err: e.message }));
+        logHulk("error", t("clone_failed", { err: e.message }));
+      }
+    });
+  });
 }
 
 function setInfoModalOpen(open) {
@@ -2473,6 +2954,7 @@ function startEvents() {
           }
         }
         runtime.status = next;
+        runtime.groupStatus = ev.group_snapshot || {};
         renderRunners();
         tickRunnerElapsed();
         updateGlobalRunningStatus();
@@ -2561,6 +3043,26 @@ function startEvents() {
         return;
       }
 
+      if (ev.type === "group_status") {
+        const gid = ev.group_id;
+        if (!gid) return;
+        runtime.groupStatus[gid] = ev;
+        const name = ev.group_name || gid;
+        if (ev.status === "started") {
+          logHulk("info", t("group_event_started", { name }), ev.ts);
+        } else if (ev.status === "stopped") {
+          logHulk("info", t("group_event_stopped", { name }), ev.ts);
+        } else if (ev.status === "finished") {
+          logHulk("success", t("group_event_finished", { name }), ev.ts);
+        } else if (ev.status === "error") {
+          const msg = t("group_event_error", { name, err: ev.error || "unknown" });
+          logHulk("error", msg, ev.ts);
+          hulkFlash("error", msg, 5200);
+        }
+        renderRunners();
+        return;
+      }
+
       if (ev.type === "output") {
         const rid = ev.runner_id;
         runtime.outputs[rid] = (runtime.outputs[rid] || "") + ev.line;
@@ -2626,8 +3128,9 @@ function startEvents() {
   };
 }
 
-async function autoSave() {
-  if (!validateStateBeforePersist()) return false;
+async function autoSave(options = {}) {
+  const skipValidation = !!options.skipValidation;
+  if (!skipValidation && !validateStateBeforePersist()) return false;
   try {
     await apiPost("/api/state", collectState());
     state.notify_profiles.forEach((np) => {
@@ -2758,6 +3261,26 @@ async function wireUI() {
     hulkFlash("info", t("new_notify_created"), 4500);
   });
 
+  el("addGroupBtn")?.addEventListener("click", async () => {
+    ui.runnerSectionCollapsed = false;
+    saveUIState();
+    const gid = `group_${uuidFallback()}`;
+    state.runner_groups.push({
+      id: gid,
+      name: t("new_group_default_name"),
+      runner_ids: [],
+      _collapsed: false,
+    });
+    state.runner_layout.push({ type: "group", id: gid });
+    normalizeRunnerStructureState();
+    renderRunners();
+    const saved = await autoSave({ skipValidation: true });
+    if (saved) {
+      hulkFlash("success", t("new_group_created"), 3200);
+      logHulk("success", t("new_group_created"));
+    }
+  });
+
   el("addRunnerBtn").addEventListener("click", async () => {
     ui.runnerSectionCollapsed = false;
     saveUIState();
@@ -2779,8 +3302,10 @@ async function wireUI() {
       // Runner can be persisted without a command; it just cannot be started until a command is set.
       _isNew: false,
     });
+    state.runner_layout.push({ type: "runner", id: rid });
+    normalizeRunnerStructureState();
     renderRunners();
-    const saved = await autoSave();
+    const saved = await autoSave({ skipValidation: true });
     if (saved) {
       hulkFlash("success", t("new_runner_created"), 3200);
       logHulk("success", t("new_runner_created_log", { rid }));

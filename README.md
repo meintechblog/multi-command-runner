@@ -47,6 +47,7 @@ More installation details (including Proxmox LXC setup and sudo-safe install flo
 
 - Installation & deployment: `docs/INSTALL.md`
 - Proxmox LXC setup guide: `docs/INSTALL.md#0-proxmox-lxc-recommended-homelab-setup`
+- Instance endpoints (dev/prod): `docs/INSTANCES.md`
 - Security notes: `SECURITY.md`
 - Changelog: `CHANGELOG.md`
 
@@ -141,6 +142,8 @@ HOST=0.0.0.0 PORT=8080 DATA_DIR=/opt/multi-command-runner/data python -m app.mai
 - `POST /api/clone_runner` - clone a runner (saved copy inserted below the source)
 - `POST /api/run` - start a runner
 - `POST /api/stop` - stop a runner
+- `POST /api/group/run` - start sequential group run
+- `POST /api/group/stop` - stop active group run and all group runners
 - `GET /api/events` - SSE event stream
 - `GET /api/log/{runner_id}` - read runner log
 - `DELETE /api/log/{runner_id}` - clear runner log

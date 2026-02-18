@@ -320,6 +320,11 @@ fi
             ],
         }
     ],
+    "runner_groups": [],
+    "runner_layout": [
+        {"type": "runner", "id": "runner1"},
+        {"type": "runner", "id": "runner_ping_192_168_3_1"},
+    ],
 }
 
 
@@ -406,9 +411,56 @@ class RunnerConfig(BaseModel):
         return cleaned
 
 
+class RunnerGroupConfig(BaseModel):
+    id: str = Field(default_factory=lambda: _new_id("group_"))
+    name: str = "Group"
+    runner_ids: List[str] = Field(default_factory=list)
+
+    @field_validator("id")
+    @classmethod
+    def validate_id(cls, value: str) -> str:
+        if not _valid_safe_id(value):
+            raise ValueError("Invalid runner group id format")
+        return value
+
+    @field_validator("runner_ids")
+    @classmethod
+    def validate_runner_ids(cls, values: List[str]) -> List[str]:
+        cleaned: List[str] = []
+        for value in values:
+            s = str(value or "").strip()
+            if not _valid_safe_id(s):
+                raise ValueError("Invalid runner reference id")
+            cleaned.append(s)
+        return cleaned
+
+
+class RunnerLayoutItem(BaseModel):
+    type: str = "runner"  # runner | group
+    id: str = ""
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, value: str) -> str:
+        t = str(value or "").strip().lower()
+        if t not in {"runner", "group"}:
+            raise ValueError("Invalid layout item type")
+        return t
+
+    @field_validator("id")
+    @classmethod
+    def validate_id(cls, value: str) -> str:
+        s = str(value or "").strip()
+        if not _valid_safe_id(s):
+            raise ValueError("Invalid layout item id format")
+        return s
+
+
 class AppState(BaseModel):
     notify_profiles: List[NotifyProfile] = Field(default_factory=list)
     runners: List[RunnerConfig] = Field(default_factory=list)
+    runner_groups: List[RunnerGroupConfig] = Field(default_factory=list)
+    runner_layout: List[RunnerLayoutItem] = Field(default_factory=list)
     # Legacy fields for migration
     pushover_user_key: str = ""
     pushover_api_token: str = ""
@@ -449,6 +501,31 @@ class StopRequest(BaseModel):
         s = str(value or "").strip()
         if not _valid_safe_id(s):
             raise ValueError("Invalid runner id format")
+        return s
+
+
+class GroupRunRequest(BaseModel):
+    state: AppState
+    group_id: str
+
+    @field_validator("group_id")
+    @classmethod
+    def validate_group_id(cls, value: str) -> str:
+        s = str(value or "").strip()
+        if not _valid_safe_id(s):
+            raise ValueError("Invalid group id format")
+        return s
+
+
+class GroupStopRequest(BaseModel):
+    group_id: str
+
+    @field_validator("group_id")
+    @classmethod
+    def validate_group_id(cls, value: str) -> str:
+        s = str(value or "").strip()
+        if not _valid_safe_id(s):
+            raise ValueError("Invalid group id format")
         return s
 
 
@@ -818,7 +895,7 @@ class StateStore:
 
     @staticmethod
     def _merge_defaults(data: Dict[str, Any]) -> Dict[str, Any]:
-        merged = dict(DEFAULT_STATE)
+        merged = json.loads(json.dumps(DEFAULT_STATE, ensure_ascii=False))
         merged.update({k: v for k, v in data.items() if v is not None})
 
         # Migration: Convert legacy global Pushover keys to default profile
@@ -841,94 +918,210 @@ class StateStore:
         notify_profiles = merged.get("notify_profiles") or []
         if not isinstance(notify_profiles, list):
             notify_profiles = []
+        sane_notify_profiles: List[Dict[str, Any]] = []
+        seen_notify_ids: set[str] = set()
         for np in notify_profiles:
-            np["id"] = _sanitize_entity_id(np.get("id", ""), "notify_")
-            np.setdefault("name", "Pushover")
-            np["type"] = "pushover"
-            np.setdefault("active", True)
-            np.setdefault("failure_count", 0)
-            np.setdefault("sent_count", 0)
-            np["active"] = bool(np.get("active", True))
+            if not isinstance(np, dict):
+                continue
+            npid = _sanitize_entity_id(np.get("id", ""), "notify_")
+            while npid in seen_notify_ids:
+                npid = _new_id("notify_")
+            seen_notify_ids.add(npid)
+
+            sane_np = dict(np)
+            sane_np["id"] = npid
+            sane_np.setdefault("name", "Pushover")
+            sane_np["type"] = "pushover"
+            sane_np.setdefault("active", True)
+            sane_np.setdefault("failure_count", 0)
+            sane_np.setdefault("sent_count", 0)
+            sane_np["active"] = bool(sane_np.get("active", True))
             try:
-                np["failure_count"] = max(0, int(np.get("failure_count", 0)))
+                sane_np["failure_count"] = max(0, int(sane_np.get("failure_count", 0)))
             except Exception:
-                np["failure_count"] = 0
+                sane_np["failure_count"] = 0
             try:
-                np["sent_count"] = max(0, int(np.get("sent_count", 0)))
+                sane_np["sent_count"] = max(0, int(sane_np.get("sent_count", 0)))
             except Exception:
-                np["sent_count"] = 0
-            np.pop("snoozed_until", None)
-            np.setdefault("config", {"user_key": "", "api_token": ""})
-            if not isinstance(np["config"], dict):
-                np["config"] = {"user_key": "", "api_token": ""}
-            np["config"]["user_key"] = str(np["config"].get("user_key", "") or "")
-            np["config"]["api_token"] = str(np["config"].get("api_token", "") or "")
-        merged["notify_profiles"] = notify_profiles
+                sane_np["sent_count"] = 0
+            sane_np.pop("snoozed_until", None)
+            sane_np.setdefault("config", {"user_key": "", "api_token": ""})
+            if not isinstance(sane_np["config"], dict):
+                sane_np["config"] = {"user_key": "", "api_token": ""}
+            sane_np["config"]["user_key"] = str(sane_np["config"].get("user_key", "") or "")
+            sane_np["config"]["api_token"] = str(sane_np["config"].get("api_token", "") or "")
+            sane_notify_profiles.append(sane_np)
+        merged["notify_profiles"] = sane_notify_profiles
 
         runners = merged.get("runners") or []
         if not isinstance(runners, list):
             runners = []
+        sane_runners: List[Dict[str, Any]] = []
+        seen_runner_ids: set[str] = set()
         for r in runners:
-            r["id"] = _sanitize_entity_id(r.get("id", ""), "runner_")
-            r.setdefault("name", "Runner")
-            r.setdefault("command", "")
-            r.setdefault("logging_enabled", True)
-            r.setdefault("schedule", {"hours": 0, "minutes": 0, "seconds": 0})
-            r.setdefault("max_runs", 1)
-            r.setdefault("alert_cooldown_s", 300)
-            r.setdefault("alert_escalation_s", 1800)
-            r.setdefault("failure_pause_threshold", 5)
-            r.setdefault("cases", [])
-            r.setdefault("notify_profile_ids", [])
-            r.setdefault("notify_profile_updates_only", [])
+            if not isinstance(r, dict):
+                continue
+            rid = _sanitize_entity_id(r.get("id", ""), "runner_")
+            while rid in seen_runner_ids:
+                rid = _new_id("runner_")
+            seen_runner_ids.add(rid)
+
+            sane_runner = dict(r)
+            sane_runner["id"] = rid
+            sane_runner.setdefault("name", "Runner")
+            sane_runner.setdefault("command", "")
+            sane_runner.setdefault("logging_enabled", True)
+            sane_runner.setdefault("schedule", {"hours": 0, "minutes": 0, "seconds": 0})
+            sane_runner.setdefault("max_runs", 1)
+            sane_runner.setdefault("alert_cooldown_s", 300)
+            sane_runner.setdefault("alert_escalation_s", 1800)
+            sane_runner.setdefault("failure_pause_threshold", 5)
+            sane_runner.setdefault("cases", [])
+            sane_runner.setdefault("notify_profile_ids", [])
+            sane_runner.setdefault("notify_profile_updates_only", [])
             try:
-                r["alert_cooldown_s"] = max(0, int(r.get("alert_cooldown_s", 300)))
+                sane_runner["alert_cooldown_s"] = max(0, int(sane_runner.get("alert_cooldown_s", 300)))
             except Exception:
-                r["alert_cooldown_s"] = 300
+                sane_runner["alert_cooldown_s"] = 300
             try:
-                r["alert_escalation_s"] = max(0, int(r.get("alert_escalation_s", 1800)))
+                sane_runner["alert_escalation_s"] = max(0, int(sane_runner.get("alert_escalation_s", 1800)))
             except Exception:
-                r["alert_escalation_s"] = 1800
+                sane_runner["alert_escalation_s"] = 1800
             try:
-                r["failure_pause_threshold"] = max(0, int(r.get("failure_pause_threshold", 5)))
+                sane_runner["failure_pause_threshold"] = max(0, int(sane_runner.get("failure_pause_threshold", 5)))
             except Exception:
-                r["failure_pause_threshold"] = 5
-            r.pop("snoozed_until", None)
-            r["notify_profile_ids"] = [
+                sane_runner["failure_pause_threshold"] = 5
+            sane_runner.pop("snoozed_until", None)
+            sane_runner["notify_profile_ids"] = [
                 str(v).strip()
-                for v in (r.get("notify_profile_ids") or [])
+                for v in (sane_runner.get("notify_profile_ids") or [])
                 if _valid_safe_id(str(v).strip())
             ]
-            r["notify_profile_updates_only"] = [
+            sane_runner["notify_profile_updates_only"] = [
                 str(v).strip()
-                for v in (r.get("notify_profile_updates_only") or [])
+                for v in (sane_runner.get("notify_profile_updates_only") or [])
                 if _valid_safe_id(str(v).strip())
             ]
 
-            raw_cases = r.get("cases", []) or []
+            raw_cases = sane_runner.get("cases", []) or []
             if not isinstance(raw_cases, list):
                 raw_cases = []
             sane_cases: List[Dict[str, Any]] = []
+            seen_case_ids: set[str] = set()
             for c in raw_cases:
                 if not isinstance(c, dict):
                     continue
-                c["id"] = _sanitize_entity_id(c.get("id", ""), "case_")
-                c["pattern"] = str(c.get("pattern", "") or "")
-                c["message_template"] = str(c.get("message_template", "") or "")
-                c.setdefault("state", "")
-                c["state"] = normalize_case_state(c.get("state", ""))
-                sane_cases.append(c)
-            r["cases"] = sane_cases
+                cid = _sanitize_entity_id(c.get("id", ""), "case_")
+                while cid in seen_case_ids:
+                    cid = _new_id("case_")
+                seen_case_ids.add(cid)
+                sane_case = dict(c)
+                sane_case["id"] = cid
+                sane_case["pattern"] = str(sane_case.get("pattern", "") or "")
+                sane_case["message_template"] = str(sane_case.get("message_template", "") or "")
+                sane_case.setdefault("state", "")
+                sane_case["state"] = normalize_case_state(sane_case.get("state", ""))
+                sane_cases.append(sane_case)
+            sane_runner["cases"] = sane_cases
+            sane_runners.append(sane_runner)
 
-        valid_notify_ids = {np.get("id") for np in notify_profiles if _valid_safe_id(str(np.get("id", "")))}
-        for r in runners:
+        valid_notify_ids = {np.get("id") for np in sane_notify_profiles if _valid_safe_id(str(np.get("id", "")))}
+        for r in sane_runners:
             r["notify_profile_ids"] = [
                 pid for pid in dict.fromkeys(r.get("notify_profile_ids", [])) if pid in valid_notify_ids
             ]
             r["notify_profile_updates_only"] = [
                 pid for pid in dict.fromkeys(r.get("notify_profile_updates_only", [])) if pid in r["notify_profile_ids"]
             ]
-        merged["runners"] = runners
+        merged["runners"] = sane_runners
+
+        valid_runner_ids = {r["id"] for r in sane_runners}
+
+        raw_groups = merged.get("runner_groups") or []
+        if not isinstance(raw_groups, list):
+            raw_groups = []
+        sane_groups: List[Dict[str, Any]] = []
+        seen_group_ids: set[str] = set()
+        assigned_runner_ids: set[str] = set()
+        for group in raw_groups:
+            if not isinstance(group, dict):
+                continue
+            gid = _sanitize_entity_id(group.get("id", ""), "group_")
+            while gid in seen_group_ids:
+                gid = _new_id("group_")
+            seen_group_ids.add(gid)
+
+            runner_ids: List[str] = []
+            for raw_runner_id in (group.get("runner_ids") or []):
+                rid = str(raw_runner_id or "").strip()
+                if not _valid_safe_id(rid):
+                    continue
+                if rid not in valid_runner_ids:
+                    continue
+                if rid in assigned_runner_ids:
+                    continue
+                if rid in runner_ids:
+                    continue
+                runner_ids.append(rid)
+                assigned_runner_ids.add(rid)
+
+            sane_groups.append(
+                {
+                    "id": gid,
+                    "name": str(group.get("name", "Group") or "Group"),
+                    "runner_ids": runner_ids,
+                }
+            )
+        merged["runner_groups"] = sane_groups
+
+        grouped_runner_ids: set[str] = set()
+        for group in sane_groups:
+            for rid in group.get("runner_ids", []):
+                grouped_runner_ids.add(rid)
+
+        raw_layout = merged.get("runner_layout")
+        sane_layout: List[Dict[str, str]] = []
+        seen_layout_runners: set[str] = set()
+        seen_layout_groups: set[str] = set()
+        valid_group_ids = {g["id"] for g in sane_groups}
+        if isinstance(raw_layout, list):
+            for item in raw_layout:
+                if not isinstance(item, dict):
+                    continue
+                item_type = str(item.get("type", "") or "").strip().lower()
+                item_id = str(item.get("id", "") or "").strip()
+                if item_type == "runner":
+                    if item_id not in valid_runner_ids:
+                        continue
+                    if item_id in grouped_runner_ids:
+                        continue
+                    if item_id in seen_layout_runners:
+                        continue
+                    seen_layout_runners.add(item_id)
+                    sane_layout.append({"type": "runner", "id": item_id})
+                elif item_type == "group":
+                    if item_id not in valid_group_ids:
+                        continue
+                    if item_id in seen_layout_groups:
+                        continue
+                    seen_layout_groups.add(item_id)
+                    sane_layout.append({"type": "group", "id": item_id})
+
+        for r in sane_runners:
+            rid = r["id"]
+            if rid in grouped_runner_ids or rid in seen_layout_runners:
+                continue
+            sane_layout.append({"type": "runner", "id": rid})
+            seen_layout_runners.add(rid)
+
+        for g in sane_groups:
+            gid = g["id"]
+            if gid in seen_layout_groups:
+                continue
+            sane_layout.append({"type": "group", "id": gid})
+            seen_layout_groups.add(gid)
+
+        merged["runner_layout"] = sane_layout
         return merged
 
 
@@ -1216,6 +1409,8 @@ class RunnerManager:
         self._last_alert_notify_ts: Dict[str, float] = {}
         self._consecutive_failures: Dict[str, int] = {}
         self._paused_due_failures: Dict[str, bool] = {}
+        self._last_exit_code: Dict[str, int] = {}
+        self._last_finish_ts: Dict[str, str] = {}
         self._max_output_lines = MAX_OUTPUT_LINES_PER_RUN
 
         # Load persisted runtime status
@@ -1243,6 +1438,8 @@ class RunnerManager:
                 | set(self._timers.keys())
                 | set(self._consecutive_failures.keys())
                 | set(self._paused_due_failures.keys())
+                | set(self._last_exit_code.keys())
+                | set(self._last_finish_ts.keys())
             )
             for rid in rids:
                 proc = self._procs.get(rid)
@@ -1260,8 +1457,13 @@ class RunnerManager:
                     "last_case_ts": self._last_case_ts.get(rid, ""),
                     "consecutive_failures": int(self._consecutive_failures.get(rid, 0)),
                     "paused": bool(self._paused_due_failures.get(rid, False)),
+                    "last_exit_code": self._last_exit_code.get(rid),
+                    "last_finish_ts": self._last_finish_ts.get(rid, ""),
                 }
             return snap
+
+    def get_runner_status(self, runner_id: str) -> Dict[str, Any]:
+        return self.snapshot().get(runner_id, {})
 
     def refresh_runtime_configs(self, state: AppState) -> None:
         """
@@ -1520,6 +1722,7 @@ class RunnerManager:
                 self._match_line_and_notify(runner_id, line)
         finally:
             exit_code = proc.wait()
+            finished_ts = now_iso()
             with self._lock:
                 output = "".join(self._outputs.get(runner_id) or [])
                 stopped = bool(self._stopped.get(runner_id, False))
@@ -1527,6 +1730,8 @@ class RunnerManager:
                 current_cfg = self._cfg.get(runner_id) or start_cfg
                 self._procs.pop(runner_id, None)
                 self._started_ts.pop(runner_id, None)
+                self._last_exit_code[runner_id] = int(exit_code)
+                self._last_finish_ts[runner_id] = finished_ts
 
             if current_cfg.logging_enabled:
                 # Command in log header should reflect the command that was actually started.
@@ -1585,7 +1790,7 @@ class RunnerManager:
                     "exit_code": exit_code,
                     "stopped": stopped,
                     "consecutive_failures": consecutive_failures,
-                    "ts": now_iso(),
+                    "ts": finished_ts,
                 }
             )
             if pause_now:
@@ -1647,6 +1852,245 @@ class RunnerManager:
                         runner_id=cfg.runner_id,
                         pattern=c.pattern,
                     )
+
+
+@dataclass
+class GroupSequenceRuntime:
+    group_id: str
+    group_name: str
+    runner_ids: List[str]
+    started_ts: str
+    stop_event: threading.Event
+    thread: Optional[threading.Thread] = None
+    current_runner_id: str = ""
+    current_index: int = 0
+    completed_count: int = 0
+
+
+class GroupSequenceManager:
+    def __init__(self, runner_manager: RunnerManager, broker: EventBroker) -> None:
+        self._runner_manager = runner_manager
+        self._broker = broker
+        self._lock = threading.Lock()
+        self._active: Dict[str, GroupSequenceRuntime] = {}
+        self._snapshot: Dict[str, Dict[str, Any]] = {}
+
+    def snapshot(self) -> Dict[str, Dict[str, Any]]:
+        with self._lock:
+            return json.loads(json.dumps(self._snapshot, ensure_ascii=False))
+
+    def _publish_group_status(
+        self,
+        *,
+        group_id: str,
+        group_name: str,
+        status: str,
+        runner_ids: List[str],
+        current_runner_id: str = "",
+        current_index: int = 0,
+        completed_count: int = 0,
+        started_ts: str = "",
+        finished_ts: str = "",
+        error: str = "",
+    ) -> None:
+        event = {
+            "type": "group_status",
+            "group_id": group_id,
+            "group_name": group_name,
+            "status": status,
+            "runner_ids": list(runner_ids),
+            "current_runner_id": current_runner_id,
+            "current_index": int(current_index),
+            "completed_count": int(completed_count),
+            "total_count": len(runner_ids),
+            "started_ts": started_ts,
+            "finished_ts": finished_ts,
+            "error": error,
+            "ts": now_iso(),
+        }
+        with self._lock:
+            self._snapshot[group_id] = dict(event)
+        self._broker.publish(event)
+
+    def _get_group_for_run(self, state: AppState, group_id: str) -> Tuple[RunnerGroupConfig, List[str]]:
+        return resolve_group_for_state(state, group_id)
+
+    def start_group(self, state: AppState, group_id: str) -> None:
+        group, runner_ids = self._get_group_for_run(state, group_id)
+        with self._lock:
+            if group_id in self._active:
+                raise HTTPException(status_code=409, detail="Group sequence already running")
+
+        runtime_snapshot = self._runner_manager.snapshot()
+        busy = [
+            rid
+            for rid in runner_ids
+            if bool((runtime_snapshot.get(rid) or {}).get("running"))
+            or bool((runtime_snapshot.get(rid) or {}).get("scheduled"))
+        ]
+        if busy:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Group contains active/scheduled runners: {', '.join(busy)}",
+            )
+
+        run = GroupSequenceRuntime(
+            group_id=group.id,
+            group_name=group.name,
+            runner_ids=runner_ids,
+            started_ts=now_iso(),
+            stop_event=threading.Event(),
+        )
+        run.thread = threading.Thread(target=self._run_group, args=(run, state), daemon=True)
+        with self._lock:
+            self._active[group.id] = run
+        self._publish_group_status(
+            group_id=run.group_id,
+            group_name=run.group_name,
+            status="started",
+            runner_ids=run.runner_ids,
+            current_runner_id="",
+            current_index=0,
+            completed_count=0,
+            started_ts=run.started_ts,
+        )
+        assert run.thread is not None
+        run.thread.start()
+
+    def stop_group(self, group_id: str, runner_ids: List[str], group_name: str = "") -> None:
+        runtime: Optional[GroupSequenceRuntime]
+        with self._lock:
+            runtime = self._active.get(group_id)
+            if runtime is not None:
+                runtime.stop_event.set()
+
+        stop_runner_ids = list(runner_ids)
+        if runtime is not None and not stop_runner_ids:
+            stop_runner_ids = list(runtime.runner_ids)
+
+        group_label = group_name or (runtime.group_name if runtime else group_id)
+        if runtime is not None:
+            self._publish_group_status(
+                group_id=group_id,
+                group_name=group_label,
+                status="stopping",
+                runner_ids=runtime.runner_ids,
+                current_runner_id=runtime.current_runner_id,
+                current_index=runtime.current_index,
+                completed_count=runtime.completed_count,
+                started_ts=runtime.started_ts,
+            )
+
+        for rid in stop_runner_ids:
+            self._runner_manager.stop(rid)
+
+        if runtime is None:
+            self._publish_group_status(
+                group_id=group_id,
+                group_name=group_label,
+                status="stopped",
+                runner_ids=stop_runner_ids,
+                current_runner_id="",
+                current_index=0,
+                completed_count=0,
+                finished_ts=now_iso(),
+            )
+
+    def _finish_run(
+        self,
+        run: GroupSequenceRuntime,
+        *,
+        status: str,
+        error: str = "",
+    ) -> None:
+        finished_ts = now_iso()
+        self._publish_group_status(
+            group_id=run.group_id,
+            group_name=run.group_name,
+            status=status,
+            runner_ids=run.runner_ids,
+            current_runner_id=run.current_runner_id,
+            current_index=run.current_index,
+            completed_count=run.completed_count,
+            started_ts=run.started_ts,
+            finished_ts=finished_ts,
+            error=error,
+        )
+        with self._lock:
+            current = self._active.get(run.group_id)
+            if current is run:
+                self._active.pop(run.group_id, None)
+
+    def _run_group(self, run: GroupSequenceRuntime, state: AppState) -> None:
+        try:
+            for idx, runner_id in enumerate(run.runner_ids, start=1):
+                if run.stop_event.is_set():
+                    self._finish_run(run, status="stopped")
+                    return
+
+                run.current_runner_id = runner_id
+                run.current_index = idx
+                self._publish_group_status(
+                    group_id=run.group_id,
+                    group_name=run.group_name,
+                    status="running",
+                    runner_ids=run.runner_ids,
+                    current_runner_id=run.current_runner_id,
+                    current_index=run.current_index,
+                    completed_count=run.completed_count,
+                    started_ts=run.started_ts,
+                )
+
+                try:
+                    cfg = compile_runner_cfg(state, runner_id, self._broker)
+                    self._runner_manager.start(cfg, reset_schedule=True)
+                except HTTPException as e:
+                    self._finish_run(run, status="error", error=f"Could not start runner {runner_id}: {e.detail}")
+                    return
+                except Exception as e:
+                    self._finish_run(run, status="error", error=f"Could not start runner {runner_id}: {e}")
+                    return
+
+                while True:
+                    if run.stop_event.is_set():
+                        self._runner_manager.stop(runner_id)
+                        self._finish_run(run, status="stopped")
+                        return
+                    st = self._runner_manager.get_runner_status(runner_id)
+                    if not bool(st.get("running")) and not bool(st.get("scheduled")):
+                        break
+                    time.sleep(0.2)
+
+                st = self._runner_manager.get_runner_status(runner_id)
+                run.completed_count = idx
+                self._publish_group_status(
+                    group_id=run.group_id,
+                    group_name=run.group_name,
+                    status="running",
+                    runner_ids=run.runner_ids,
+                    current_runner_id=run.current_runner_id,
+                    current_index=run.current_index,
+                    completed_count=run.completed_count,
+                    started_ts=run.started_ts,
+                )
+
+                last_exit_code = st.get("last_exit_code")
+                stopped = bool(st.get("stopped"))
+                paused = bool(st.get("paused"))
+                failed = paused or stopped or (last_exit_code is not None and int(last_exit_code) != 0)
+                if failed:
+                    if paused:
+                        error = f"Runner {runner_id} paused"
+                    elif stopped:
+                        error = f"Runner {runner_id} stopped"
+                    else:
+                        error = f"Runner {runner_id} failed (exit={last_exit_code})"
+                    self._finish_run(run, status="error", error=error)
+                    return
+
+            self._finish_run(run, status="finished")
+        except Exception as e:
+            self._finish_run(run, status="error", error=f"Group sequence crashed: {e}")
 
 
 def compile_runner_cfg(state: AppState, runner_id: str, broker: EventBroker) -> RunnerRuntimeConfig:
@@ -1719,11 +2163,23 @@ def compile_runner_cfg(state: AppState, runner_id: str, broker: EventBroker) -> 
     )
 
 
+def resolve_group_for_state(state: AppState, group_id: str) -> Tuple[RunnerGroupConfig, List[str]]:
+    group = next((g for g in state.runner_groups if g.id == group_id), None)
+    if group is None:
+        raise HTTPException(status_code=404, detail="Group not found")
+    valid_runner_ids = {r.id for r in state.runners}
+    runner_ids = [rid for rid in group.runner_ids if rid in valid_runner_ids]
+    if not runner_ids:
+        raise HTTPException(status_code=400, detail="Group has no runners")
+    return group, runner_ids
+
+
 store = StateStore(DB_PATH)
 ensure_logs_for_runners(store.load().get("runners", []))
 broker = EventBroker()
 notifier = NotificationWorker(broker, store)
 rm = RunnerManager(broker, notifier)
+gsm = GroupSequenceManager(rm, broker)
 
 app = FastAPI(title="multi-command-runner", version="2.2.0")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -1809,9 +2265,13 @@ def clear_notifications() -> JSONResponse:
 
 @app.post("/api/run", response_class=JSONResponse)
 def run(req: RunRequest) -> JSONResponse:
+    # Validate requested runner against incoming state before persisting.
+    compile_runner_cfg(req.state, req.runner_id, broker)
+
     store.save(req.state.model_dump())
     current = AppState.model_validate(store.load())
     ensure_logs_for_runners(current.runners)
+    rm.refresh_runtime_configs(current)
     cfg = compile_runner_cfg(current, req.runner_id, broker)
     rm.start(cfg, reset_schedule=True)
     return JSONResponse({"ok": True})
@@ -1820,6 +2280,33 @@ def run(req: RunRequest) -> JSONResponse:
 @app.post("/api/stop", response_class=JSONResponse)
 def stop(req: StopRequest) -> JSONResponse:
     rm.stop(req.runner_id)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/group/run", response_class=JSONResponse)
+def run_group(req: GroupRunRequest) -> JSONResponse:
+    # Validate requested group against incoming state before persisting.
+    resolve_group_for_state(req.state, req.group_id)
+
+    store.save(req.state.model_dump())
+    current = AppState.model_validate(store.load())
+    ensure_logs_for_runners(current.runners)
+    rm.refresh_runtime_configs(current)
+    resolve_group_for_state(current, req.group_id)
+    gsm.start_group(current, req.group_id)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/group/stop", response_class=JSONResponse)
+def stop_group(req: GroupStopRequest) -> JSONResponse:
+    current = AppState.model_validate(store.load())
+    group = next((g for g in current.runner_groups if g.id == req.group_id), None)
+    group_snapshot = gsm.snapshot().get(req.group_id, {})
+    if group is None and not group_snapshot:
+        raise HTTPException(status_code=404, detail="Group not found")
+    runner_ids = list(group.runner_ids) if group else []
+    group_name = group.name if group else str(group_snapshot.get("group_name", req.group_id) or req.group_id)
+    gsm.stop_group(req.group_id, runner_ids, group_name=group_name)
     return JSONResponse({"ok": True})
 
 
@@ -1920,6 +2407,12 @@ def clone_runner(req: CloneRunnerRequest) -> JSONResponse:
     runners = state_data.get("runners", [])
     if not isinstance(runners, list):
         runners = []
+    runner_groups = state_data.get("runner_groups", [])
+    if not isinstance(runner_groups, list):
+        runner_groups = []
+    runner_layout = state_data.get("runner_layout", [])
+    if not isinstance(runner_layout, list):
+        runner_layout = []
 
     source_index = -1
     for idx, runner in enumerate(runners):
@@ -1944,9 +2437,47 @@ def clone_runner(req: CloneRunnerRequest) -> JSONResponse:
             if isinstance(case, dict):
                 case["id"] = _new_id("case_")
     clone["cases"] = cases if isinstance(cases, list) else []
+    clone_id = clone["id"]
 
     runners.insert(source_index + 1, clone)
     state_data["runners"] = runners
+
+    source_group = None
+    for group in runner_groups:
+        if not isinstance(group, dict):
+            continue
+        ids = group.get("runner_ids", [])
+        if not isinstance(ids, list):
+            continue
+        if req.runner_id in ids:
+            source_group = group
+            break
+
+    if isinstance(source_group, dict):
+        ids = [str(v).strip() for v in (source_group.get("runner_ids") or []) if _valid_safe_id(str(v).strip())]
+        if req.runner_id in ids:
+            insert_at = ids.index(req.runner_id) + 1
+            ids.insert(insert_at, clone_id)
+        else:
+            ids.append(clone_id)
+        source_group["runner_ids"] = ids
+    else:
+        inserted = False
+        for i, item in enumerate(runner_layout):
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("type", "")).strip().lower() != "runner":
+                continue
+            if str(item.get("id", "")).strip() != req.runner_id:
+                continue
+            runner_layout.insert(i + 1, {"type": "runner", "id": clone_id})
+            inserted = True
+            break
+        if not inserted:
+            runner_layout.append({"type": "runner", "id": clone_id})
+
+    state_data["runner_groups"] = runner_groups
+    state_data["runner_layout"] = runner_layout
     store.save(state_data)
     current = AppState.model_validate(store.load())
     ensure_logs_for_runners(current.runners)
@@ -1971,9 +2502,16 @@ def clear_log(runner_id: str) -> JSONResponse:
 def export_runners() -> StreamingResponse:
     state_data = store.load()
     runners = state_data.get("runners", [])
+    runner_groups = state_data.get("runner_groups", [])
+    runner_layout = state_data.get("runner_layout", [])
 
     # Export only runners (not Pushover keys for privacy)
-    export_data = {"runners": runners, "exported_at": now_iso()}
+    export_data = {
+        "runners": runners,
+        "runner_groups": runner_groups,
+        "runner_layout": runner_layout,
+        "exported_at": now_iso(),
+    }
     json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
 
     from io import BytesIO
@@ -2004,12 +2542,16 @@ async def import_runners(request: Request) -> JSONResponse:
             raise HTTPException(status_code=400, detail="Invalid import format: 'runners' must be a list")
         if len(imported_runners) > MAX_IMPORTED_RUNNERS:
             raise HTTPException(status_code=400, detail=f"Too many runners in import (max {MAX_IMPORTED_RUNNERS})")
-
-        # Load current state
-        current_state = store.load()
-        existing_runners = current_state.get("runners", [])
-        if not isinstance(existing_runners, list):
-            existing_runners = []
+        imported_groups = import_data.get("runner_groups", [])
+        if imported_groups is None:
+            imported_groups = []
+        if not isinstance(imported_groups, list):
+            raise HTTPException(status_code=400, detail="Invalid import format: 'runner_groups' must be a list")
+        imported_layout = import_data.get("runner_layout", [])
+        if imported_layout is None:
+            imported_layout = []
+        if not isinstance(imported_layout, list):
+            raise HTTPException(status_code=400, detail="Invalid import format: 'runner_layout' must be a list")
 
         validated_runners: List[Dict[str, Any]] = []
         for idx, raw_runner in enumerate(imported_runners, start=1):
@@ -2027,24 +2569,133 @@ async def import_runners(request: Request) -> JSONResponse:
                 )
             validated_runners.append(parsed)
 
+        validated_groups: List[Dict[str, Any]] = []
+        for idx, raw_group in enumerate(imported_groups, start=1):
+            if not isinstance(raw_group, dict):
+                raise HTTPException(status_code=400, detail=f"Invalid group entry at index {idx}: expected object")
+            try:
+                parsed = RunnerGroupConfig.model_validate(raw_group).model_dump()
+            except ValidationError as e:
+                raise HTTPException(status_code=400, detail=f"Invalid group entry at index {idx}: {e}") from e
+            validated_groups.append(parsed)
+
+        validated_layout: List[Dict[str, str]] = []
+        for idx, raw_item in enumerate(imported_layout, start=1):
+            if not isinstance(raw_item, dict):
+                raise HTTPException(status_code=400, detail=f"Invalid layout entry at index {idx}: expected object")
+            try:
+                parsed = RunnerLayoutItem.model_validate(raw_item).model_dump()
+            except ValidationError as e:
+                raise HTTPException(status_code=400, detail=f"Invalid layout entry at index {idx}: {e}") from e
+            validated_layout.append(parsed)
+
+        # Load current state
+        current_state = store.load()
+        existing_runners = current_state.get("runners", [])
+        if not isinstance(existing_runners, list):
+            existing_runners = []
+        existing_groups = current_state.get("runner_groups", [])
+        if not isinstance(existing_groups, list):
+            existing_groups = []
+        existing_layout = current_state.get("runner_layout", [])
+        if not isinstance(existing_layout, list):
+            existing_layout = []
+
         if len(existing_runners) + len(validated_runners) > MAX_TOTAL_RUNNERS:
             raise HTTPException(
                 status_code=400,
                 detail=f"Import would exceed total runner limit ({MAX_TOTAL_RUNNERS})",
             )
 
-        # Merge: add imported runners with new IDs to avoid conflicts
+        runner_id_map: Dict[str, str] = {}
         for runner in validated_runners:
-            # Generate new ID for imported runner
+            old_runner_id = str(runner.get("id", "")).strip()
             runner["id"] = _new_id("runner_")
-            # Regenerate case IDs too
+            runner_id_map[old_runner_id] = runner["id"]
             for case in runner.get("cases", []):
                 case["id"] = _new_id("case_")
-            existing_runners.append(runner)
+
+        group_id_map: Dict[str, str] = {}
+        mapped_groups: List[Dict[str, Any]] = []
+        assigned_group_runner_ids: set[str] = set()
+        for group in validated_groups:
+            old_group_id = str(group.get("id", "")).strip()
+            new_group_id = _new_id("group_")
+            group_id_map[old_group_id] = new_group_id
+            mapped_runner_ids: List[str] = []
+            for old_runner_id in group.get("runner_ids", []):
+                mapped_runner_id = runner_id_map.get(str(old_runner_id).strip(), "")
+                if not mapped_runner_id:
+                    continue
+                if mapped_runner_id in assigned_group_runner_ids:
+                    continue
+                if mapped_runner_id in mapped_runner_ids:
+                    continue
+                mapped_runner_ids.append(mapped_runner_id)
+                assigned_group_runner_ids.add(mapped_runner_id)
+            mapped_groups.append(
+                {
+                    "id": new_group_id,
+                    "name": str(group.get("name", "Group") or "Group"),
+                    "runner_ids": mapped_runner_ids,
+                }
+            )
+
+        mapped_layout_segment: List[Dict[str, str]] = []
+        grouped_runner_ids = {rid for g in mapped_groups for rid in g.get("runner_ids", [])}
+        if validated_layout:
+            seen_layout_runner_ids: set[str] = set()
+            seen_layout_group_ids: set[str] = set()
+            for item in validated_layout:
+                item_type = str(item.get("type", "")).strip().lower()
+                item_id = str(item.get("id", "")).strip()
+                if item_type == "runner":
+                    mapped_runner_id = runner_id_map.get(item_id, "")
+                    if not mapped_runner_id or mapped_runner_id in grouped_runner_ids:
+                        continue
+                    if mapped_runner_id in seen_layout_runner_ids:
+                        continue
+                    seen_layout_runner_ids.add(mapped_runner_id)
+                    mapped_layout_segment.append({"type": "runner", "id": mapped_runner_id})
+                elif item_type == "group":
+                    mapped_group_id = group_id_map.get(item_id, "")
+                    if not mapped_group_id:
+                        continue
+                    if mapped_group_id in seen_layout_group_ids:
+                        continue
+                    seen_layout_group_ids.add(mapped_group_id)
+                    mapped_layout_segment.append({"type": "group", "id": mapped_group_id})
+
+            for runner in validated_runners:
+                rid = runner["id"]
+                if rid in grouped_runner_ids or rid in seen_layout_runner_ids:
+                    continue
+                mapped_layout_segment.append({"type": "runner", "id": rid})
+                seen_layout_runner_ids.add(rid)
+            for group in mapped_groups:
+                gid = group["id"]
+                if gid in seen_layout_group_ids:
+                    continue
+                mapped_layout_segment.append({"type": "group", "id": gid})
+                seen_layout_group_ids.add(gid)
+        else:
+            # Legacy import format without groups/layout -> all imported runners stay ungrouped.
+            for runner in validated_runners:
+                mapped_layout_segment.append({"type": "runner", "id": runner["id"]})
+            for group in mapped_groups:
+                mapped_layout_segment.append({"type": "group", "id": group["id"]})
+
+        existing_runners.extend(validated_runners)
+        existing_groups.extend(mapped_groups)
+        existing_layout.extend(mapped_layout_segment)
 
         current_state["runners"] = existing_runners
+        current_state["runner_groups"] = existing_groups
+        current_state["runner_layout"] = existing_layout
         store.save(current_state)
-        ensure_logs_for_runners(existing_runners)
+        merged_state = AppState.model_validate(store.load())
+        ensure_logs_for_runners(merged_state.runners)
+        rm.refresh_runtime_configs(merged_state)
 
         return JSONResponse({"ok": True, "imported_count": len(validated_runners)})
     except json.JSONDecodeError as e:
@@ -2062,10 +2713,11 @@ def events() -> StreamingResponse:
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
     snap = rm.snapshot()
+    group_snap = gsm.snapshot()
 
     def gen() -> Iterable[str]:
         try:
-            yield f"data: {json.dumps({'type': 'snapshot', 'snapshot': snap}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'snapshot', 'snapshot': snap, 'group_snapshot': group_snap}, ensure_ascii=False)}\n\n"
             while True:
                 try:
                     ev = q.get(timeout=15)
