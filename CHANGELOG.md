@@ -4,7 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-- Pending
+### Fixed
+
+- Installer now detects and migrates legacy `command-runner` deployments to `multi-command-runner` automatically:
+  - legacy path `/opt/command-runner` to `/opt/multi-command-runner`
+  - legacy env keys `COMMAND_RUNNER_*` to `MULTI_COMMAND_RUNNER_*`
+  - legacy service cutover (`command-runner.service` -> `multi-command-runner.service`) with rollback fallback
+- Installer fresh-install auth prompt now correctly skips interactive `/dev/tty` reads in non-interactive runs.
+- Uninstaller now correctly skips interactive `/dev/tty` prompts in non-interactive runs.
+
+### Changed
+
+- Installation and uninstall one-liners in docs now use `raw.githubusercontent.com/.../refs/heads/main/...` and include a cache-buster tip.
 
 ## [2.2.0] - 2026-02-11
 

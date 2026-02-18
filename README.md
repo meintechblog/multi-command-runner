@@ -7,7 +7,7 @@ Web UI for running and monitoring shell commands as reusable runners.
 Run inside the target Debian/Ubuntu container as `root`:
 
 ```bash
-apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/install.sh | bash
+apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/refs/heads/main/scripts/install.sh | bash
 ```
 
 Re-running the same command also works as an update path (pull latest code + restart service).
@@ -22,13 +22,19 @@ You can disable auth bootstrap explicitly with `ENABLE_BASIC_AUTH=0` (not recomm
 Safe default uninstall (removes service + app directory, keeps data and service account):
 
 ```bash
-apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/uninstall.sh | bash
+apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/refs/heads/main/scripts/uninstall.sh | bash
 ```
 
 Full purge (also remove data and service account, non-interactive):
 
 ```bash
-apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/uninstall.sh | REMOVE_DATA=1 REMOVE_SYSTEM_ACCOUNT=1 FORCE=1 bash
+apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/refs/heads/main/scripts/uninstall.sh | REMOVE_DATA=1 REMOVE_SYSTEM_ACCOUNT=1 FORCE=1 bash
+```
+
+If you suspect stale CDN content, append a cache buster (example):
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/meintechblog/multi-command-runner/refs/heads/main/scripts/install.sh?ts=$(date +%s)" | bash
 ```
 
 ## System Requirements (Short)

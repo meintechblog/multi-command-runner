@@ -26,7 +26,7 @@ Important:
 Run this inside the new container as `root`:
 
 ```bash
-apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/install.sh | bash
+apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/refs/heads/main/scripts/install.sh | bash
 ```
 
 If you are **not root** but have `sudo`, use this beginner-safe flow:
@@ -34,7 +34,7 @@ If you are **not root** but have `sudo`, use this beginner-safe flow:
 ```bash
 sudo apt-get update
 sudo apt-get install -y curl
-curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/install.sh -o /tmp/multi-command-runner-install.sh
+curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/refs/heads/main/scripts/install.sh -o /tmp/multi-command-runner-install.sh
 sudo bash /tmp/multi-command-runner-install.sh
 ```
 
@@ -62,13 +62,13 @@ Browser auth note (important):
 Optional overrides (example):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/install.sh | REPO_BRANCH=main PORT_BIND=8090 INSTALL_DIR=/opt/multi-command-runner bash
+curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/refs/heads/main/scripts/install.sh | REPO_BRANCH=main PORT_BIND=8090 INSTALL_DIR=/opt/multi-command-runner bash
 ```
 
 Disable automatic Basic-auth bootstrap (not recommended):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/install.sh | ENABLE_BASIC_AUTH=0 bash
+curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/refs/heads/main/scripts/install.sh | ENABLE_BASIC_AUTH=0 bash
 ```
 
 ## Automated Uninstall
@@ -82,14 +82,19 @@ Safe default uninstall:
 Run as `root` inside the container:
 
 ```bash
-apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/uninstall.sh | bash
+apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/refs/heads/main/scripts/uninstall.sh | bash
 ```
 
 Non-interactive full purge:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/main/scripts/uninstall.sh | REMOVE_DATA=1 REMOVE_SYSTEM_ACCOUNT=1 FORCE=1 bash
+curl -fsSL https://raw.githubusercontent.com/meintechblog/multi-command-runner/refs/heads/main/scripts/uninstall.sh | REMOVE_DATA=1 REMOVE_SYSTEM_ACCOUNT=1 FORCE=1 bash
 ```
+
+CDN cache tip:
+
+- If you suspect stale script content, append a cache-buster query parameter.
+- Example: `curl -fsSL "https://raw.githubusercontent.com/meintechblog/multi-command-runner/refs/heads/main/scripts/install.sh?ts=$(date +%s)" | bash`
 
 Optional uninstall variables:
 
