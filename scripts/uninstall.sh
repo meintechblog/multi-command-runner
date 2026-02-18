@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SCRIPT_VERSION="1.1.0"
+SCRIPT_VERSION="1.1.1"
 
 SERVICE_NAME="${SERVICE_NAME:-multi-command-runner}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/multi-command-runner}"
@@ -82,6 +82,10 @@ prompt_yes_no() {
   done
 }
 
+has_interactive_tty() {
+  tty -s && [[ -r /dev/tty && -w /dev/tty ]]
+}
+
 resolve_data_dir() {
   if [[ -z "${DATA_DIR}" && -f "${ENV_FILE}" ]]; then
     DATA_DIR="$(grep -E "^[[:space:]]*DATA_DIR=" "${ENV_FILE}" | tail -n 1 | cut -d'=' -f2- || true)"
@@ -103,7 +107,7 @@ configure_options() {
   if [[ "${FORCE}" == "1" ]]; then
     return
   fi
-  if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then
+  if ! has_interactive_tty; then
     warn "No interactive TTY detected. Using default/specified uninstall options."
     return
   fi
