@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
   - legacy service cutover (`command-runner.service` -> `multi-command-runner.service`) with rollback fallback
 - Installer fresh-install auth prompt now correctly skips interactive `/dev/tty` reads in non-interactive runs.
 - Uninstaller now correctly skips interactive `/dev/tty` prompts in non-interactive runs.
+- Security dependency update: `cryptography` bumped to `46.0.5` (fixes `CVE-2026-26007` flagged by CI `pip-audit`).
 
 ### Changed
 
