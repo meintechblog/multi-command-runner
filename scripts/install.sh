@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SCRIPT_VERSION="1.2.0"
+SCRIPT_VERSION="1.2.1"
 
 REPO_URL="${REPO_URL:-https://github.com/meintechblog/multi-command-runner.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
@@ -18,6 +18,9 @@ ENABLE_BASIC_AUTH="${ENABLE_BASIC_AUTH:-1}"
 
 SERVICE_UNIT_PATH="/etc/systemd/system/${SERVICE_NAME}.service"
 ENV_FILE="${INSTALL_DIR}/.env"
+LEGACY_INSTALL_DIR="/opt/command-runner"
+LEGACY_SERVICE_NAME="command-runner"
+LEGACY_ENV_FILE="${LEGACY_INSTALL_DIR}/.env"
 generated_auth_password=""
 effective_auth_user=""
 effective_auth_password=""
@@ -25,6 +28,7 @@ install_auth_user=""
 install_auth_password=""
 manual_auth_configured="0"
 is_fresh_install="0"
+migrate_legacy_install="0"
 
 log() {
   printf "%s [INFO] %s\n" "$(date '+%F %T')" "$*"
@@ -84,6 +88,113 @@ ensure_git_safe_directory() {
   git config --global --add safe.directory "${repo_dir}"
 }
 
+has_interactive_tty() {
+  tty -s && [[ -r /dev/tty && -w /dev/tty ]]
+}
+
+read_env_value() {
+  local key="$1"
+  local file="$2"
+  grep -E "^[[:space:]]*${key}=" "${file}" | tail -n 1 | cut -d'=' -f2- || true
+}
+
+prepare_legacy_migration() {
+  if [[ "${INSTALL_DIR}" != "/opt/multi-command-runner" ]]; then
+    return
+  fi
+  if [[ "${SERVICE_NAME}" != "multi-command-runner" ]]; then
+    return
+  fi
+  if [[ -d "${INSTALL_DIR}/.git" ]]; then
+    return
+  fi
+  if [[ ! -d "${LEGACY_INSTALL_DIR}/.git" ]]; then
+    return
+  fi
+  migrate_legacy_install="1"
+  log "Detected legacy installation at ${LEGACY_INSTALL_DIR}; running in migration mode."
+}
+
+migrate_legacy_assets() {
+  local legacy_data_dir="${LEGACY_INSTALL_DIR}/data"
+  local env_legacy_data_dir=""
+  local ts
+  ts="$(date +%Y%m%d-%H%M%S)"
+
+  if [[ -f "${LEGACY_ENV_FILE}" ]]; then
+    cp "${LEGACY_ENV_FILE}" "${ENV_FILE}.legacy.${ts}.bak"
+    cp "${LEGACY_ENV_FILE}" "${ENV_FILE}"
+    sed -i \
+      -e 's/^[[:space:]]*COMMAND_RUNNER_SECRET_KEY=/MULTI_COMMAND_RUNNER_SECRET_KEY=/' \
+      -e 's/^[[:space:]]*COMMAND_RUNNER_AUTH_USER=/MULTI_COMMAND_RUNNER_AUTH_USER=/' \
+      -e 's/^[[:space:]]*COMMAND_RUNNER_AUTH_PASSWORD=/MULTI_COMMAND_RUNNER_AUTH_PASSWORD=/' \
+      "${ENV_FILE}"
+    env_legacy_data_dir="$(read_env_value "DATA_DIR" "${LEGACY_ENV_FILE}")"
+    if [[ -n "${env_legacy_data_dir}" ]]; then
+      legacy_data_dir="${env_legacy_data_dir}"
+    fi
+  else
+    warn "Legacy env file not found at ${LEGACY_ENV_FILE}; using defaults."
+  fi
+
+  if [[ -d "${legacy_data_dir}" ]]; then
+    mkdir -p "${DATA_DIR}"
+    if command -v rsync >/dev/null 2>&1; then
+      rsync -a "${legacy_data_dir}/" "${DATA_DIR}/"
+    else
+      cp -a "${legacy_data_dir}/." "${DATA_DIR}/"
+    fi
+    log "Migrated data from ${legacy_data_dir} to ${DATA_DIR}."
+  else
+    warn "Legacy data directory not found: ${legacy_data_dir}"
+  fi
+}
+
+stop_legacy_service_for_cutover() {
+  if [[ "${migrate_legacy_install}" != "1" ]]; then
+    return
+  fi
+  if [[ "${LEGACY_SERVICE_NAME}" == "${SERVICE_NAME}" ]]; then
+    return
+  fi
+  if ! systemctl cat "${LEGACY_SERVICE_NAME}.service" >/dev/null 2>&1; then
+    return
+  fi
+  if systemctl is-active --quiet "${LEGACY_SERVICE_NAME}.service"; then
+    log "Stopping legacy service ${LEGACY_SERVICE_NAME}.service for migration cutover."
+    systemctl stop "${LEGACY_SERVICE_NAME}.service"
+  fi
+}
+
+disable_legacy_service_post_cutover() {
+  if [[ "${migrate_legacy_install}" != "1" ]]; then
+    return
+  fi
+  if [[ "${LEGACY_SERVICE_NAME}" == "${SERVICE_NAME}" ]]; then
+    return
+  fi
+  if ! systemctl cat "${LEGACY_SERVICE_NAME}.service" >/dev/null 2>&1; then
+    return
+  fi
+  log "Disabling legacy service ${LEGACY_SERVICE_NAME}.service after successful migration."
+  systemctl disable "${LEGACY_SERVICE_NAME}.service" >/dev/null 2>&1 || true
+  systemctl reset-failed "${LEGACY_SERVICE_NAME}.service" >/dev/null 2>&1 || true
+}
+
+rollback_to_legacy_service() {
+  if [[ "${migrate_legacy_install}" != "1" ]]; then
+    return
+  fi
+  if [[ "${LEGACY_SERVICE_NAME}" == "${SERVICE_NAME}" ]]; then
+    return
+  fi
+  if ! systemctl cat "${LEGACY_SERVICE_NAME}.service" >/dev/null 2>&1; then
+    return
+  fi
+  warn "Attempting rollback by restarting ${LEGACY_SERVICE_NAME}.service."
+  systemctl start "${LEGACY_SERVICE_NAME}.service" >/dev/null 2>&1 || true
+}
+
 prompt_from_tty() {
   local prompt_text="$1"
   local default_value="${2:-}"
@@ -117,7 +228,7 @@ configure_auth_for_fresh_install() {
     log "ENABLE_BASIC_AUTH explicitly set -> skipping interactive auth prompt."
     return
   fi
-  if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then
+  if ! has_interactive_tty; then
     warn "No interactive TTY detected. Using default auth bootstrap behavior (enabled)."
     return
   fi
@@ -198,6 +309,8 @@ if [[ "${APP_USER}" != "root" ]]; then
   fi
 fi
 
+prepare_legacy_migration
+
 if [[ -d "${INSTALL_DIR}/.git" ]]; then
   log "Updating existing repository in ${INSTALL_DIR}"
   ensure_git_safe_directory "${INSTALL_DIR}"
@@ -212,7 +325,11 @@ elif [[ -d "${INSTALL_DIR}" && -n "$(ls -A "${INSTALL_DIR}" 2>/dev/null)" ]]; th
   log "Cloning repository to ${INSTALL_DIR}"
   git clone --branch "${REPO_BRANCH}" "${REPO_URL}" "${INSTALL_DIR}"
 else
-  is_fresh_install="1"
+  if [[ "${migrate_legacy_install}" == "1" ]]; then
+    is_fresh_install="0"
+  else
+    is_fresh_install="1"
+  fi
   log "Cloning repository to ${INSTALL_DIR}"
   git clone --branch "${REPO_BRANCH}" "${REPO_URL}" "${INSTALL_DIR}"
 fi
@@ -234,6 +351,10 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   fi
 fi
 
+if [[ "${migrate_legacy_install}" == "1" ]]; then
+  migrate_legacy_assets
+fi
+
 upsert_env "HOST" "${HOST_BIND}" "${ENV_FILE}"
 upsert_env "PORT" "${PORT_BIND}" "${ENV_FILE}"
 upsert_env "DATA_DIR" "${DATA_DIR}" "${ENV_FILE}"
@@ -244,8 +365,8 @@ if ! grep -qE "^[[:space:]]*MULTI_COMMAND_RUNNER_SECRET_KEY=" "${ENV_FILE}"; the
   printf "MULTI_COMMAND_RUNNER_SECRET_KEY=%s\n" "${secret_key}" >> "${ENV_FILE}"
 fi
 
-current_auth_user="$(grep -E "^[[:space:]]*MULTI_COMMAND_RUNNER_AUTH_USER=" "${ENV_FILE}" | tail -n 1 | cut -d'=' -f2- || true)"
-current_auth_pass="$(grep -E "^[[:space:]]*MULTI_COMMAND_RUNNER_AUTH_PASSWORD=" "${ENV_FILE}" | tail -n 1 | cut -d'=' -f2- || true)"
+current_auth_user="$(read_env_value "MULTI_COMMAND_RUNNER_AUTH_USER" "${ENV_FILE}")"
+current_auth_pass="$(read_env_value "MULTI_COMMAND_RUNNER_AUTH_PASSWORD" "${ENV_FILE}")"
 
 # On update runs, keep existing auth state unless the caller explicitly sets ENABLE_BASIC_AUTH.
 if [[ "${is_fresh_install}" != "1" && -z "${ENABLE_BASIC_AUTH_WAS_SET}" ]]; then
@@ -322,12 +443,14 @@ EOF
 
 log "Enabling and starting ${SERVICE_NAME}.service"
 systemctl daemon-reload
+stop_legacy_service_for_cutover
 systemctl enable "${SERVICE_NAME}.service"
 systemctl restart "${SERVICE_NAME}.service"
 
 if ! systemctl is-active --quiet "${SERVICE_NAME}.service"; then
   systemctl status "${SERVICE_NAME}.service" --no-pager || true
   journalctl -u "${SERVICE_NAME}.service" -n 60 --no-pager || true
+  rollback_to_legacy_service
   fail "${SERVICE_NAME}.service failed to start."
 fi
 ok "${SERVICE_NAME}.service is active."
@@ -349,10 +472,12 @@ done
 
 if [[ "${health_ok}" != "1" ]]; then
   journalctl -u "${SERVICE_NAME}.service" -n 80 --no-pager || true
+  rollback_to_legacy_service
   fail "Service started but health endpoint did not respond in time."
 fi
 
 ok "Health check successful."
+disable_legacy_service_post_cutover
 
 host_ips="$(hostname -I 2>/dev/null | xargs || true)"
 lan_urls=()
