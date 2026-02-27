@@ -60,7 +60,8 @@ More installation details (including Proxmox LXC setup and sudo-safe install flo
 ## What It Does
 
 - Manage multiple runners (name, command, schedule, cases, notifications)
-- UI language switch (DE/EN/FR) (persisted locally in the browser)
+- UI language switch (DE/EN/FR/ZH) (persisted locally in the browser)
+- Full Chinese UI translation (including the Info modal)
 - Clone a saved runner (creates a stored copy directly below the source)
 - Run commands manually or on interval after each run finishes
 - Show runner active duration while active (running/scheduled) (`hh:mm:ss`, unlimited hours)

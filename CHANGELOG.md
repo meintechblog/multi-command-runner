@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Chinese (`ZH`) UI language support in the language toggle.
+- Full Chinese UI translations including the Info modal content.
+
+### Changed
+
+- UI language switch now cycles through `DE/EN/FR/ZH`.
+
 ### Fixed
 
 - Installer now detects and migrates legacy `command-runner` deployments to `multi-command-runner` automatically:

@@ -16,16 +16,17 @@ const runtime = {
 
 const UI_STORAGE_KEY = "multi-command-runner.ui";
 const MASKED_SECRET = "__SECRET_SET__";
-const LANG_ORDER = ["de", "en", "fr"];
+const LANG_ORDER = ["de", "en", "fr", "zh"];
 const LANG_FALLBACK = "de";
-const LANG_LABELS = { de: "DE", en: "EN", fr: "FR" };
-const LANG_LOCALES = { de: "de-DE", en: "en-US", fr: "fr-FR" };
+const LANG_LABELS = { de: "DE", en: "EN", fr: "FR", zh: "中文" };
+const LANG_LOCALES = { de: "de-DE", en: "en-US", fr: "fr-FR", zh: "zh-CN" };
 
 function normalizeLang(value) {
   const s = String(value || "").trim().toLowerCase();
   if (s.startsWith("de")) return "de";
   if (s.startsWith("en")) return "en";
   if (s.startsWith("fr")) return "fr";
+  if (s.startsWith("zh") || s.startsWith("cn")) return "zh";
   return "";
 }
 
@@ -86,6 +87,8 @@ const ui = {
   savedNotifySignatures: {},
   dirtyRunners: new Set(),
   savedRunnerSignatures: {},
+  dirtyRunnerGroups: new Set(),
+  savedRunnerGroupSignatures: {},
 };
 
 const I18N = {
@@ -99,10 +102,11 @@ const I18N = {
     lang_toggle_title_to_en: "Zu Englisch wechseln",
     lang_toggle_title_to_de: "Zu Deutsch wechseln",
     lang_toggle_title_to_fr: "Zu Franzosisch wechseln",
+    lang_toggle_title_to_zh: "Zu Chinesisch wechseln",
     notify_services_title: "Notification services",
     runners_title: "Runners",
     add_service: "+ Dienst",
-    add_group: "+ Obergruppe",
+    add_group: "+ Multi-Runner",
     add_runner: "+ Runner",
     export: "⬇ Export",
     import: "⬆ Import",
@@ -161,9 +165,9 @@ const I18N = {
     confirm_delete_case: "Case {idx} wirklich löschen?",
     case_pattern_placeholder: "z.B. passwort:\\s*(?P<pw>\\S+)",
     case_message_placeholder: "z.B. Passwort: {pw}",
-    case_help: "Template: {match}, {g1}, {name} | Status fuer UP/DOWN/Recovery Logik",
+    case_help: "Template: {match}, {g1}, {name} | Status fuer UP/DOWN/Recovery/STOP Logik",
     runner_placeholder: "Runner Name",
-    group_placeholder: "Gruppenname",
+    group_placeholder: "Multi-Runner-Name",
     lock_active_title: "Während Run aktiv gesperrt.",
     clone_needs_saved_title: "Nur im gespeicherten Zustand clonbar. Erst speichern.",
     notifications: "Benachrichtigungen",
@@ -211,7 +215,12 @@ const I18N = {
     runstop_failed: "RUN/STOP FEHLGESCHLAGEN FUER {rid}: {err}",
     group_run: "▶ Group Run",
     group_stop: "■ Group Stop",
-    group_empty: "Keine Runner in dieser Gruppe.",
+    group_empty: "Keine Runner in diesem Multi-Runner.",
+    group_no_active_runners: "Kein aktiver Runner für Group-Run in dieser Gruppe.",
+    group_runner_enabled: "GroupRun: Ein",
+    group_runner_disabled: "GroupRun: Aus",
+    group_runner_enable_title: "Für Group-Run aktivieren",
+    group_runner_disable_title: "Für Group-Run deaktivieren",
     group_run_starting: "GRUPPENLAUF FUER \"{name}\" STARTET...",
     group_run_failed: "GRUPPENLAUF FEHLGESCHLAGEN FUER \"{name}\": {err}",
     group_stop_sent: "STOPP-SIGNAL FUER GRUPPE \"{name}\" GESENDET.",
@@ -225,8 +234,8 @@ const I18N = {
     group_event_stopped: "GRUPPE \"{name}\": SEQUENZ GESTOPPT.",
     group_event_finished: "GRUPPE \"{name}\": SEQUENZ BEENDET.",
     group_event_error: "GRUPPE \"{name}\": SEQUENZ FEHLER - {err}",
-    confirm_delete_group: "Obergruppe \"{name}\" wirklich löschen?",
-    group_removed: "OBERGRUPPE \"{name}\" ENTFERNT.",
+    confirm_delete_group: "Multi-Runner \"{name}\" wirklich löschen?",
+    group_removed: "MULTI-RUNNER \"{name}\" ENTFERNT.",
     confirm_delete_runner: "Runner \"{name}\" wirklich löschen?",
     runner_removed: "RUNNER \"{name}\" ENTFERNT.",
     clone_blocked: "CLONE BLOCKIERT: BITTE ZUERST ALLE AENDERUNGEN SPEICHERN.",
@@ -257,10 +266,10 @@ const I18N = {
     journal_clear_failed: "JOURNAL LEEREN FEHLGESCHLAGEN: {err}",
     events_cleared: "EVENTS GELEERT.",
     new_notify_default_name: "Neuer Pushover-Dienst",
-    new_group_default_name: "Neue Obergruppe",
+    new_group_default_name: "Neuer Multi-Runner",
     new_runner_default_name: "New Runner",
     new_notify_created: "NEUER NOTIFICATION-DIENST ERSTELLT. PFLICHTFELDER AUSFUELLEN UND SPEICHERN.",
-    new_group_created: "NEUE OBERGRUPPE ERSTELLT UND GESPEICHERT.",
+    new_group_created: "NEUER MULTI-RUNNER ERSTELLT UND GESPEICHERT.",
     new_runner_created: "NEUER RUNNER ERSTELLT UND GESPEICHERT.",
     new_runner_created_log: "RUNNER {rid} ERSTELLT UND GESPEICHERT.",
     export_starting: "EXPORT WIRD GESTARTET...",
@@ -284,6 +293,7 @@ const I18N = {
     lang_toggle_title_to_en: "Switch to English",
     lang_toggle_title_to_de: "Switch to German",
     lang_toggle_title_to_fr: "Switch to French",
+    lang_toggle_title_to_zh: "Switch to Chinese",
     notify_services_title: "Notification services",
     runners_title: "Runners",
     add_service: "+ Service",
@@ -346,7 +356,7 @@ const I18N = {
     confirm_delete_case: "Really delete case {idx}?",
     case_pattern_placeholder: "e.g. password:\\s*(?P<pw>\\S+)",
     case_message_placeholder: "e.g. Password: {pw}",
-    case_help: "Template: {match}, {g1}, {name} | Status for UP/DOWN/Recovery logic",
+    case_help: "Template: {match}, {g1}, {name} | Status for UP/DOWN/Recovery/STOP logic",
     runner_placeholder: "Runner name",
     group_placeholder: "Group name",
     lock_active_title: "Locked while active.",
@@ -397,6 +407,11 @@ const I18N = {
     group_run: "▶ Group Run",
     group_stop: "■ Group Stop",
     group_empty: "No runners in this group.",
+    group_no_active_runners: "No active runners available for group run in this group.",
+    group_runner_enabled: "GroupRun: On",
+    group_runner_disabled: "GroupRun: Off",
+    group_runner_enable_title: "Enable for group run",
+    group_runner_disable_title: "Disable for group run",
     group_run_starting: "STARTING GROUP RUN FOR \"{name}\"...",
     group_run_failed: "GROUP RUN FAILED FOR \"{name}\": {err}",
     group_stop_sent: "STOP SIGNAL SENT TO GROUP \"{name}\".",
@@ -472,6 +487,7 @@ I18N.fr = {
   lang_toggle_title_to_en: "Passer en anglais",
   lang_toggle_title_to_de: "Passer en allemand",
   lang_toggle_title_to_fr: "Passer en francais",
+  lang_toggle_title_to_zh: "Passer en chinois",
   notify_services_title: "Services de notification",
   runners_title: "Runners",
   add_service: "+ Service",
@@ -534,7 +550,7 @@ I18N.fr = {
   confirm_delete_case: "Supprimer vraiment le case {idx}?",
   case_pattern_placeholder: "ex. password:\\s*(?P<pw>\\S+)",
   case_message_placeholder: "ex. Mot de passe: {pw}",
-  case_help: "Template: {match}, {g1}, {name} | Statut pour la logique UP/DOWN/Recovery",
+  case_help: "Template: {match}, {g1}, {name} | Statut pour la logique UP/DOWN/Recovery/STOP",
   runner_placeholder: "Nom du runner",
   group_placeholder: "Nom du groupe",
   lock_active_title: "Verrouille pendant l'activite.",
@@ -585,6 +601,11 @@ I18N.fr = {
   group_run: "▶ Group Run",
   group_stop: "■ Group Stop",
   group_empty: "Aucun runner dans ce groupe.",
+  group_no_active_runners: "Aucun runner actif pour le group run dans ce groupe.",
+  group_runner_enabled: "GroupRun: On",
+  group_runner_disabled: "GroupRun: Off",
+  group_runner_enable_title: "Activer pour le group run",
+  group_runner_disable_title: "Desactiver pour le group run",
   group_run_starting: "DEMARRAGE DU GROUP RUN POUR \"{name}\"...",
   group_run_failed: "ECHEC GROUP RUN POUR \"{name}\": {err}",
   group_stop_sent: "SIGNAL STOP ENVOYE AU GROUPE \"{name}\".",
@@ -646,6 +667,198 @@ I18N.fr = {
   system_ready: "Systeme pret.",
   system_ready_log: "SYSTEME PRET.",
   start_failed: "ECHEC DU DEMARRAGE: {err}",
+};
+
+I18N.zh = {
+  sort_label: "排序：{state}",
+  sort_on: "开",
+  sort_off: "关",
+  no_changes: "无更改",
+  open_info_title: "打开程序信息",
+  lang_switch_aria: "语言",
+  lang_toggle_title_to_en: "切换到英语",
+  lang_toggle_title_to_de: "切换到德语",
+  lang_toggle_title_to_fr: "切换到法语",
+  lang_toggle_title_to_zh: "切换到中文",
+  notify_services_title: "通知服务",
+  runners_title: "运行器",
+  add_service: "+ 服务",
+  add_group: "+ 组",
+  add_runner: "+ 运行器",
+  export: "⬇ 导出",
+  import: "⬆ 导入",
+  notification_journal: "通知日志",
+  clear_journal: "清空日志",
+  events: "事件",
+  clear_events: "清空事件",
+  close: "关闭",
+  active_since: "已运行：{elapsed}",
+  journal_error: "错误",
+  cmd_missing_reason: "缺少命令：请先填写命令。",
+  cmd_missing_short: "缺少命令。",
+  save_first_reason: "请先保存（编辑模式）。",
+  unknown_notify_service: "未知通知服务。",
+  service_name_missing: "缺少服务名称。",
+  user_key_missing: "缺少用户密钥。",
+  api_token_missing: "缺少 API 令牌。",
+  service_fallback: "服务",
+  new_service_fallback: "新服务",
+  new_runner_fallback: "新建",
+  save_blocked: "保存被阻止：{reasons}",
+  save_blocked_log: "保存被阻止：{reasons}",
+  infinite: "无限",
+  off: "关闭",
+  failures: "{n} 次失败",
+  no_status: "(无状态)",
+  notify_none_configured: "尚未配置通知服务。点击“+ 服务”添加。",
+  service_name_placeholder: "服务名称",
+  move_up: "上移",
+  move_down: "下移",
+  service_active_title: "服务已启用（点击可禁用）",
+  service_inactive_title: "服务已禁用（点击可启用）",
+  active: "启用",
+  inactive: "禁用",
+  service_inactive: "服务已禁用",
+  save: "💾 保存",
+  remove: "删除",
+  secret_set: "***已设置***",
+  user_key_enter: "输入用户密钥",
+  api_token_enter: "输入 API 令牌",
+  creds_hint: "凭据会以掩码显示。输入新值会覆盖旧值。",
+  service_enabled: "服务“{label}”已启用。",
+  service_disabled: "服务“{label}”已禁用。",
+  test_notify_start: "正在测试通知服务“{name}”...",
+  test_ok_log: "“{name}”测试成功。响应：{response}",
+  test_ok_flash: "“{name}”测试成功。",
+  test_fail: "“{name}”测试失败：{err}",
+  confirm_delete_notify: "确定删除通知服务“{name}”？",
+  notify_removed: "通知服务“{name}”已删除。",
+  notify_status_inactive_auto: "已禁用：{fail}/3 次失败。已发送：{sent}。",
+  notify_status_inactive_manual: "已禁用：手动。已发送：{sent}。",
+  notify_status_active_fail: "已启用：{fail}/3 次失败。已发送：{sent}。",
+  notify_status_active_ok: "已启用：正常。已发送：{sent}。",
+  notify_auto_disabled_base: "{label} 在 {fail} 次失败后已被自动禁用。",
+  notify_auto_disabled_reason_suffix: " 原因：{reason}",
+  confirm_delete_case: "确定删除规则 {idx}？",
+  case_pattern_placeholder: "例如 password:\\s*(?P<pw>\\S+)",
+  case_message_placeholder: "例如 密码：{pw}",
+  case_help: "模板：{match}、{g1}、{name} | 状态用于 UP/DOWN/Recovery/STOP 逻辑",
+  runner_placeholder: "运行器名称",
+  group_placeholder: "组名称",
+  lock_active_title: "运行时已锁定。",
+  clone_needs_saved_title: "仅在已保存状态可克隆。请先保存。",
+  notifications: "通知",
+  no_services_available: "没有可用服务",
+  notify_on_title: "通知已开启",
+  notify_off_title: "通知已关闭",
+  on: "开",
+  off_short: "关",
+  enable_first: "请先启用",
+  updates_only: "仅状态更新",
+  updates_only_title_on: "仅发送状态变化",
+  updates_only_title_off: "每次匹配都发送",
+  logging_title: "关闭后：不再写入 data/run_<runner_id>.log",
+  logging_on: "开启",
+  logging_off: "关闭",
+  open_log: "📄 打开日志",
+  clear_log: "🗑️ 清空日志",
+  confirm_clear_log: "确定清空日志文件？",
+  log_cleared_log: "{rid} 的日志已清空。",
+  log_cleared_flash: "{rid} 的日志已清空。",
+  log_clear_failed: "清空 {rid} 日志失败：{err}",
+  scheduler: "调度器（运行结束后）",
+  hours: "小时",
+  minutes: "分钟",
+  seconds: "秒",
+  total_runs: "总运行次数",
+  alert_cooldown: "告警冷却",
+  escalation: "升级通知",
+  auto_pause: "自动暂停",
+  cases: "规则",
+  cases_hint: "每行输出按正则匹配。每次匹配 -> Pushover（仅当 token+user key 已设置）。空规则（pattern+message 为空）-> 结束时发送最后一行输出。",
+  add_case: "+ 规则",
+  add_case_title: "添加新规则",
+  copy: "📋 复制",
+  copy_title: "复制到剪贴板",
+  output: "输出",
+  clipboard_blocked: "浏览器阻止了剪贴板访问。",
+  copied: "✓ 已复制",
+  output_copied: "已将 {rid} 的输出复制到剪贴板。",
+  copy_failed: "复制失败：{err}",
+  stop_signal_sent: "已向 {rid} 发送停止信号。",
+  run_blocked_edit: "运行被阻止：{rid} 处于编辑模式。请先保存。",
+  run_not_possible_missing_cmd: "无法运行：{rid} 缺少命令。",
+  runner_starting: "{rid} 正在启动。",
+  runstop_failed: "{rid} 运行/停止失败：{err}",
+  group_run: "▶ 组运行",
+  group_stop: "■ 组停止",
+  group_empty: "该组中没有运行器。",
+  group_no_active_runners: "该组没有可用于组运行的已启用运行器。",
+  group_runner_enabled: "组运行：开",
+  group_runner_disabled: "组运行：关",
+  group_runner_enable_title: "在组运行中启用",
+  group_runner_disable_title: "在组运行中禁用",
+  group_run_starting: "正在启动组“{name}”运行...",
+  group_run_failed: "组“{name}”运行失败：{err}",
+  group_stop_sent: "已向组“{name}”发送停止信号。",
+  group_stop_failed: "组“{name}”停止失败：{err}",
+  group_state_running: "运行中：{done}/{total} | 当前：{runner}",
+  group_state_stopping: "正在停止...",
+  group_state_finished: "已完成（{done}/{total}）",
+  group_state_error: "错误：{err}",
+  group_state_stopped: "已停止",
+  group_event_started: "组“{name}”：序列已开始。",
+  group_event_stopped: "组“{name}”：序列已停止。",
+  group_event_finished: "组“{name}”：序列已完成。",
+  group_event_error: "组“{name}”：序列错误 - {err}",
+  confirm_delete_group: "确定删除组“{name}”？",
+  group_removed: "组“{name}”已删除。",
+  confirm_delete_runner: "确定删除运行器“{name}”？",
+  runner_removed: "运行器“{name}”已删除。",
+  clone_blocked: "克隆被阻止：请先保存所有更改。",
+  runner_cloned: "运行器“{source}”已克隆{target}。",
+  clone_failed: "克隆失败：{err}",
+  journal_load_failed: "加载日志失败：{err}",
+  running_label: "运行中",
+  scheduled_label: "已计划",
+  confirm_leave_active_runner: "至少有一个运行器仍在运行。仍要离开此页面吗？",
+  run_started: "{rid}：运行已开始。",
+  run_stopping: "{rid}：正在停止运行...",
+  run_stopped: "{rid}：运行已停止。",
+  run_scheduled: "{rid}：下次运行将在 {sec} 秒后执行。",
+  auto_pause_msg: "{rid}：连续失败 {n} 次后已自动暂停。需要手动运行。",
+  runner_auto_pause_state: "连续失败 {n} 次后自动暂停",
+  run_finished: "{rid}：运行结束（EXIT={code}, STOPPED={stopped}）。",
+  run_finished_error: "{rid} 运行出错结束（EXIT={code}）。",
+  event_stream_unstable: "事件流不稳定，正在重连。",
+  event_stream_unstable_log: "事件流连接不稳定。",
+  autosave_ok: "自动保存成功。",
+  save_failed_log: "保存失败：{err}",
+  save_failed_flash: "保存失败：{err}",
+  notify_sort_mode: "通知排序模式 {state}。",
+  runner_sort_mode: "运行器排序模式 {state}。",
+  sort_mode_on_upper: "开启",
+  sort_mode_off_upper: "关闭",
+  journal_cleared: "通知日志已清空。",
+  journal_clear_failed: "清空日志失败：{err}",
+  events_cleared: "事件已清空。",
+  new_notify_default_name: "新 Pushover 服务",
+  new_group_default_name: "新组",
+  new_runner_default_name: "新运行器",
+  new_notify_created: "已创建新通知服务。请填写必填项并保存。",
+  new_group_created: "新组已创建并保存。",
+  new_runner_created: "新运行器已创建并保存。",
+  new_runner_created_log: "运行器 {rid} 已创建并保存。",
+  export_starting: "正在开始导出...",
+  export_started_log: "导出已开始。下载应已开始。",
+  export_started_flash: "导出已开始。下载应已开始。",
+  export_failed: "导出失败：{err}",
+  import_running: "正在导入：{name}",
+  import_ok: "导入成功：已导入 {count} 个运行器。",
+  import_failed: "导入失败：{err}",
+  system_ready: "系统就绪。",
+  system_ready_log: "系统就绪。",
+  start_failed: "启动失败：{err}",
 };
 
 function currentLang() {
@@ -798,10 +1011,19 @@ function normalizeRunnerStructureState() {
       assignedRunnerIds.add(rid);
       nextRunnerIds.push(rid);
     }
+    const nextDisabledRunnerIds = [];
+    for (const rawDisabledRunnerId of Array.isArray(rawGroup.disabled_runner_ids) ? rawGroup.disabled_runner_ids : []) {
+      const rid = String(rawDisabledRunnerId || "").trim();
+      if (!rid || !validRunnerIds.has(rid)) continue;
+      if (!nextRunnerIds.includes(rid)) continue;
+      if (nextDisabledRunnerIds.includes(rid)) continue;
+      nextDisabledRunnerIds.push(rid);
+    }
     nextGroups.push({
       id: gid,
       name: String(rawGroup.name || "Group"),
       runner_ids: nextRunnerIds,
+      disabled_runner_ids: nextDisabledRunnerIds,
       _collapsed: !!rawGroup._collapsed,
     });
   }
@@ -875,7 +1097,20 @@ function removeRunnerFromLayout(rid) {
 function removeRunnerFromGroups(rid) {
   state.runner_groups.forEach((g) => {
     g.runner_ids = (g.runner_ids || []).filter((id) => id !== rid);
+    g.disabled_runner_ids = (g.disabled_runner_ids || []).filter((id) => id !== rid);
   });
+}
+
+function activeRunnerIdsForGroup(group) {
+  if (!group) return [];
+  const disabled = new Set(Array.isArray(group.disabled_runner_ids) ? group.disabled_runner_ids : []);
+  return (group.runner_ids || []).filter((rid) => !disabled.has(rid));
+}
+
+function isRunnerEnabledForGroupRun(group, rid) {
+  if (!group || !rid) return true;
+  const disabled = new Set(Array.isArray(group.disabled_runner_ids) ? group.disabled_runner_ids : []);
+  return !disabled.has(rid);
 }
 
 function insertRunnerInLayout(rid, index) {
@@ -1057,7 +1292,8 @@ function appendEvents(text) {
 let runnerElapsedInterval = null;
 function tickRunnerElapsed() {
   const nodes = document.querySelectorAll("[data-runner-elapsed]");
-  if (!nodes.length) return;
+  const groupNodes = document.querySelectorAll("[data-group-elapsed]");
+  if (!nodes.length && !groupNodes.length) return;
   const nowMs = Date.now();
   nodes.forEach((node) => {
     const rid = String(node.dataset.runnerElapsed || "");
@@ -1066,6 +1302,24 @@ function tickRunnerElapsed() {
     const activeTs = String(rt.active_ts || rt.started_ts || "");
     if (isActive && activeTs) {
       const s = formatElapsedSince(activeTs, nowMs);
+      if (s) {
+        node.classList.remove("hidden");
+        node.textContent = `⏱ ${s}`;
+        node.title = t("active_since", { elapsed: s });
+        return;
+      }
+    }
+    node.classList.add("hidden");
+    node.textContent = "";
+    node.title = "";
+  });
+  groupNodes.forEach((node) => {
+    const gid = String(node.dataset.groupElapsed || "");
+    const groupState = runtime.groupStatus[gid] || {};
+    const isActive = isGroupStatusActive(groupState);
+    const startedTs = String(groupState.started_ts || "");
+    if (isActive && startedTs) {
+      const s = formatElapsedSince(startedTs, nowMs);
       if (s) {
         node.classList.remove("hidden");
         node.textContent = `⏱ ${s}`;
@@ -1498,6 +1752,104 @@ function clearAllDirtyRunners() {
   ui.dirtyRunners.clear();
 }
 
+function computeRunnerGroupSignature(g) {
+  const runnerIds = Array.isArray(g?.runner_ids)
+    ? g.runner_ids.map((rid) => String(rid ?? "")).sort()
+    : [];
+  const disabledRunnerIds = Array.isArray(g?.disabled_runner_ids)
+    ? g.disabled_runner_ids.map((rid) => String(rid ?? "")).sort()
+    : [];
+  return JSON.stringify({
+    name: String(g?.name ?? ""),
+    runner_ids: runnerIds,
+    disabled_runner_ids: disabledRunnerIds,
+  });
+}
+
+function syncSavedRunnerGroupSignatures() {
+  const next = {};
+  state.runner_groups.forEach((g) => {
+    next[g.id] = computeRunnerGroupSignature(g);
+  });
+  ui.savedRunnerGroupSignatures = next;
+}
+
+function refreshRunnerGroupDirtyState(gid) {
+  if (!gid) return;
+  const g = findGroupById(gid);
+  if (!g) {
+    ui.dirtyRunnerGroups.delete(gid);
+    const missingCard = document.querySelector(`.groupCard[data-group-id="${gid}"]`);
+    if (missingCard) {
+      missingCard.classList.remove("is-dirty");
+    }
+    const missingNameInput = document.querySelector(`[data-group-name="${gid}"]`);
+    if (missingNameInput) {
+      missingNameInput.classList.remove("is-dirty");
+    }
+    return;
+  }
+  const currentSig = computeRunnerGroupSignature(g);
+  const savedSig = ui.savedRunnerGroupSignatures[gid];
+  if (savedSig === undefined || currentSig !== savedSig) {
+    ui.dirtyRunnerGroups.add(gid);
+  } else {
+    ui.dirtyRunnerGroups.delete(gid);
+  }
+  const card = document.querySelector(`.groupCard[data-group-id="${gid}"]`);
+  const nameInput = document.querySelector(`[data-group-name="${gid}"]`);
+  const isDirty = ui.dirtyRunnerGroups.has(gid);
+  if (card) {
+    card.classList.toggle("is-dirty", isDirty);
+  }
+  if (nameInput) {
+    nameInput.classList.toggle("is-dirty", isDirty);
+  }
+}
+
+function syncRunnerGroupDirtyButton(gid) {
+  const isDirty = ui.dirtyRunnerGroups.has(gid);
+  const card = document.querySelector(`.groupCard[data-group-id="${gid}"]`);
+  const nameInput = document.querySelector(`[data-group-name="${gid}"]`);
+  if (card) {
+    card.classList.toggle("is-dirty", isDirty);
+  }
+  if (nameInput) {
+    nameInput.classList.toggle("is-dirty", isDirty);
+  }
+  const btn = document.querySelector(`[data-save-group-name="${gid}"]`);
+  if (!btn) return;
+  btn.classList.toggle("dirty", isDirty);
+  btn.disabled = !isDirty;
+  if (!isDirty) {
+    btn.title = t("no_changes");
+  } else {
+    btn.removeAttribute("title");
+  }
+}
+
+function syncAllRunnerGroupDirtyButtons() {
+  document.querySelectorAll("[data-save-group-name]").forEach((btn) => {
+    const gid = btn.getAttribute("data-save-group-name");
+    syncRunnerGroupDirtyButton(gid);
+  });
+}
+
+function refreshAllRunnerGroupDirtyStates() {
+  const existing = new Set(state.runner_groups.map((g) => g.id));
+  Object.keys(ui.savedRunnerGroupSignatures).forEach((gid) => {
+    if (!existing.has(gid)) {
+      delete ui.savedRunnerGroupSignatures[gid];
+      ui.dirtyRunnerGroups.delete(gid);
+    }
+  });
+  state.runner_groups.forEach((g) => refreshRunnerGroupDirtyState(g.id));
+}
+
+function clearAllDirtyRunnerGroups() {
+  ui.dirtyRunnerGroups.clear();
+}
+
 function notifyProfileValidationError(np) {
   if (!np) return t("unknown_notify_service");
   if ((np.name || "").trim() === "") return t("service_name_missing");
@@ -1509,7 +1861,7 @@ function notifyProfileValidationError(np) {
 }
 
 function hasUnsavedLocalChanges() {
-  if (ui.dirtyNotifyProfiles.size > 0 || ui.dirtyRunners.size > 0) return true;
+  if (ui.dirtyNotifyProfiles.size > 0 || ui.dirtyRunners.size > 0 || ui.dirtyRunnerGroups.size > 0) return true;
   if (state.notify_profiles.some((np) => !!np?._isNew)) return true;
   if (state.runners.some((r) => !!r?._isNew)) return true;
   return false;
@@ -1674,6 +2026,7 @@ function caseStateOptions(selected) {
     ["DOWN", "DOWN"],
     ["WARN", "WARN"],
     ["INFO", "INFO"],
+    ["STOP", "STOP"],
   ];
   return vals
     .map(([v, label]) => `<option value="${v}" ${curr === v ? "selected" : ""}>${label}</option>`)
@@ -1713,6 +2066,7 @@ function collectState() {
       id: g.id,
       name: g.name,
       runner_ids: [...(g.runner_ids || [])],
+      disabled_runner_ids: [...(g.disabled_runner_ids || [])],
     })),
     runner_layout: state.runner_layout.map((item) => ({
       type: item.type === "group" ? "group" : "runner",
@@ -1722,55 +2076,76 @@ function collectState() {
 }
 
 function setFromState(st) {
+  const prevNotifyCollapsed = new Map(
+    (state.notify_profiles || []).map((np) => [String(np.id || ""), !!np._collapsed]),
+  );
+  const prevRunnerCollapsed = new Map(
+    (state.runners || []).map((r) => [String(r.id || ""), !!r._collapsed]),
+  );
+  const prevGroupCollapsed = new Map(
+    (state.runner_groups || []).map((g) => [String(g.id || ""), !!g._collapsed]),
+  );
+
   clearAllDirtyNotifyProfiles();
   clearAllDirtyRunners();
-  state.notify_profiles = (st.notify_profiles ?? []).map((np) => ({
-    id: np.id ?? `notify_${uuidFallback()}`,
-    name: np.name ?? "Pushover",
-    type: np.type ?? "pushover",
-    active: np.active !== false,
-    failure_count: Number(np.failure_count || 0),
-    sent_count: Number(np.sent_count || 0),
-    config: {
-      user_key: np.config?.user_key ?? "",
-      api_token: np.config?.api_token ?? "",
-    },
-    _collapsed: true,
-    _isNew: false,
-  }));
+  clearAllDirtyRunnerGroups();
+  state.notify_profiles = (st.notify_profiles ?? []).map((np) => {
+    const id = np.id ?? `notify_${uuidFallback()}`;
+    return {
+      id,
+      name: np.name ?? "Pushover",
+      type: np.type ?? "pushover",
+      active: np.active !== false,
+      failure_count: Number(np.failure_count || 0),
+      sent_count: Number(np.sent_count || 0),
+      config: {
+        user_key: np.config?.user_key ?? "",
+        api_token: np.config?.api_token ?? "",
+      },
+      _collapsed: prevNotifyCollapsed.has(id) ? !!prevNotifyCollapsed.get(id) : true,
+      _isNew: false,
+    };
+  });
   syncSavedNotifySignatures();
 
-  state.runners = (st.runners ?? []).map((r) => ({
-    id: r.id ?? `runner_${uuidFallback()}`,
-    name: r.name ?? "Runner",
-    command: r.command ?? "",
-    logging_enabled: r.logging_enabled ?? true,
-    schedule: {
-      hours: r.schedule?.hours ?? 0,
-      minutes: r.schedule?.minutes ?? 0,
-      seconds: r.schedule?.seconds ?? 0,
-    },
-    max_runs: r.max_runs ?? 1,
-    alert_cooldown_s: Number(r.alert_cooldown_s ?? 300),
-    alert_escalation_s: Number(r.alert_escalation_s ?? 1800),
-    failure_pause_threshold: Number(r.failure_pause_threshold ?? 5),
-    notify_profile_ids: r.notify_profile_ids ?? [],
-    notify_profile_updates_only: r.notify_profile_updates_only ?? [],
-    cases: (r.cases ?? []).map((c) => ({
-      id: c.id ?? `case_${uuidFallback()}`,
-      pattern: c.pattern ?? "",
-      message_template: c.message_template ?? "",
-      state: c.state ?? "",
-    })),
-    _collapsed: true,
-    _isNew: false,
-  }));
-  state.runner_groups = (st.runner_groups ?? []).map((g) => ({
-    id: g.id ?? `group_${uuidFallback()}`,
-    name: g.name ?? t("new_group_default_name"),
-    runner_ids: Array.isArray(g.runner_ids) ? g.runner_ids.slice() : [],
-    _collapsed: true,
-  }));
+  state.runners = (st.runners ?? []).map((r) => {
+    const id = r.id ?? `runner_${uuidFallback()}`;
+    return {
+      id,
+      name: r.name ?? "Runner",
+      command: r.command ?? "",
+      logging_enabled: r.logging_enabled ?? true,
+      schedule: {
+        hours: r.schedule?.hours ?? 0,
+        minutes: r.schedule?.minutes ?? 0,
+        seconds: r.schedule?.seconds ?? 0,
+      },
+      max_runs: r.max_runs ?? 1,
+      alert_cooldown_s: Number(r.alert_cooldown_s ?? 300),
+      alert_escalation_s: Number(r.alert_escalation_s ?? 1800),
+      failure_pause_threshold: Number(r.failure_pause_threshold ?? 5),
+      notify_profile_ids: r.notify_profile_ids ?? [],
+      notify_profile_updates_only: r.notify_profile_updates_only ?? [],
+      cases: (r.cases ?? []).map((c) => ({
+        id: c.id ?? `case_${uuidFallback()}`,
+        pattern: c.pattern ?? "",
+        message_template: c.message_template ?? "",
+        state: c.state ?? "",
+      })),
+      _collapsed: prevRunnerCollapsed.has(id) ? !!prevRunnerCollapsed.get(id) : true,
+      _isNew: false,
+    };
+  });
+  state.runner_groups = (st.runner_groups ?? []).map((g) => {
+    const id = g.id ?? `group_${uuidFallback()}`;
+    return {
+      id,
+      name: g.name ?? t("new_group_default_name"),
+      runner_ids: Array.isArray(g.runner_ids) ? g.runner_ids.slice() : [],
+      disabled_runner_ids: Array.isArray(g.disabled_runner_ids) ? g.disabled_runner_ids.slice() : [],
+      _collapsed: prevGroupCollapsed.has(id) ? !!prevGroupCollapsed.get(id) : true,
+    };
+  });
   state.runner_layout = (st.runner_layout ?? []).map((item) => ({
     type: String(item?.type || "").toLowerCase() === "group" ? "group" : "runner",
     id: item?.id ?? "",
@@ -1780,6 +2155,7 @@ function setFromState(st) {
   }
   normalizeRunnerStructureState();
   syncSavedRunnerSignatures();
+  syncSavedRunnerGroupSignatures();
 
   syncSortModeButtons();
   renderNotifySection();
@@ -2087,9 +2463,18 @@ function groupStateText(groupState) {
   const status = String(groupState.status || "");
   const done = Math.max(0, Number(groupState.completed_count || 0));
   const total = Math.max(0, Number(groupState.total_count || 0));
-  const runner = String(groupState.current_runner_id || "-");
+  const currentRunnerId = String(groupState.current_runner_id || "").trim();
+  const currentIndex = Math.max(0, Number(groupState.current_index || 0));
+  const runnerObj = currentRunnerId ? findRunnerById(currentRunnerId) : null;
+  const runnerName = String(runnerObj?.name || "").trim();
+  const runner = currentRunnerId ? (runnerName || currentRunnerId) : "-";
   if (status === "started" || status === "running") {
-    return t("group_state_running", { done, total, runner });
+    const activeIndex = currentIndex > 0
+      ? currentIndex
+      : (currentRunnerId ? done + 1 : done);
+    const runningDone = Math.max(done, activeIndex);
+    const shownDone = total > 0 ? Math.min(runningDone, total) : runningDone;
+    return t("group_state_running", { done: shownDone, total, runner });
   }
   if (status === "stopping") return t("group_state_stopping");
   if (status === "finished") return t("group_state_finished", { done, total });
@@ -2104,9 +2489,10 @@ function renderRunners() {
   wrap.innerHTML = "";
   renderRunnerSection();
   refreshAllRunnerDirtyStates();
+  refreshAllRunnerGroupDirtyStates();
   const cloneBlockedByUnsaved = hasUnsavedLocalChanges();
 
-  const appendRunnerCard = (container, r, moveConfig) => {
+  const appendRunnerCard = (container, r, moveConfig, groupContext = null) => {
     const rt = runtime.status[r.id] || {};
     const running = !!rt.running;
     const scheduled = !!rt.scheduled;
@@ -2167,9 +2553,14 @@ function renderRunners() {
     const downDisabled = !!moveConfig.moveDownDisabled || isLocked;
     const moveUpTitle = isLocked ? t("lock_active_title") : t("move_up");
     const moveDownTitle = isLocked ? t("lock_active_title") : t("move_down");
+    const groupId = String(groupContext?.groupId || "").trim();
+    const isGroupMember = !!groupId;
+    const isGroupRunEnabled = isGroupMember ? !!groupContext?.groupRunEnabled : true;
+    const groupRunLabel = isGroupRunEnabled ? t("group_runner_enabled") : t("group_runner_disabled");
+    const groupRunTitle = isGroupRunEnabled ? t("group_runner_disable_title") : t("group_runner_enable_title");
 
     const div = document.createElement("div");
-    div.className = `runner${isSaveableDirty ? " is-dirty" : ""}`;
+    div.className = `runner${isSaveableDirty ? " is-dirty" : ""}${isGroupMember && !isGroupRunEnabled ? " is-group-disabled" : ""}`;
     div.dataset.runnerId = r.id;
     div.innerHTML = `
       <div class="runnerHead">
@@ -2192,6 +2583,9 @@ function renderRunners() {
           <button class="btn ${isActive ? "danger" : "primary"}" data-runstop="${r.id}" ${runDisabledAttr}>
             ${isActive ? "■ Stop" : "▶ Run"}
           </button>
+          ${isGroupMember
+            ? `<button class="btn groupMemberToggleBtn ${isGroupRunEnabled ? "primary" : ""}" data-group-member-toggle="${groupId}" data-group-member-runner="${r.id}" title="${escapeHtml(groupRunTitle)}">${escapeHtml(groupRunLabel)}</button>`
+            : ""}
           <button class="btn primary runnerSaveBtn ${isDirty ? "dirty" : ""} ${saveBlocked ? "invalid" : ""}" data-save-name="${r.id}" ${isDirty ? "" : `disabled title="${escapeHtml(t("no_changes"))}"`}>${escapeHtml(t("save"))}</button>
           <button class="btn" data-clone-runner="${r.id}" ${cloneDisabledAttr}>Clone</button>
           <button class="btn danger" data-delrunner="${r.id}" ${removeDisabledAttr}>${escapeHtml(t("remove"))}</button>
@@ -2338,15 +2732,24 @@ function renderRunners() {
       if (!group) return;
       const groupState = runtime.groupStatus[group.id] || {};
       const groupActive = isGroupStatusActive(groupState);
+      const groupStartedTs = String(groupState.started_ts || "");
+      const groupElapsedText = groupActive ? formatElapsedSince(groupStartedTs) : "";
+      const showGroupElapsed = groupActive && !!groupElapsedText;
+      const isGroupDirty = ui.dirtyRunnerGroups.has(group.id);
       const groupDiv = document.createElement("div");
-      groupDiv.className = "groupCard";
+      groupDiv.className = `groupCard${isGroupDirty ? " is-dirty" : ""}`;
       groupDiv.dataset.groupId = group.id;
       groupDiv.innerHTML = `
         <div class="groupHead">
-          <div class="groupTitleWrap">
-            <span class="toggle" data-toggle-group="${group.id}">${group._collapsed ? "+" : "-"}</span>
-            <input data-group-name="${group.id}" value="${escapeHtml(group.name)}" placeholder="${escapeHtml(t("group_placeholder"))}" />
-            <span class="small groupStateText">${escapeHtml(groupStateText(groupState))}</span>
+          <div class="groupIdentity">
+            <div class="groupTitleRow">
+              <span class="toggle" data-toggle-group="${group.id}">${group._collapsed ? "+" : "-"}</span>
+              <input data-group-name="${group.id}" value="${escapeHtml(group.name)}" placeholder="${escapeHtml(t("group_placeholder"))}" />
+              <span class="pill groupElapsed ${showGroupElapsed ? "" : "hidden"}" data-group-elapsed="${group.id}">${showGroupElapsed ? `⏱ ${escapeHtml(groupElapsedText)}` : ""}</span>
+            </div>
+            <div class="groupState">
+              <span class="small groupStateText">${escapeHtml(groupStateText(groupState))}</span>
+            </div>
           </div>
           <div class="row gap center wrapline groupActions">
             <div class="row gap center reorderControls ${ui.runnerSortMode ? "" : "hidden"}">
@@ -2356,6 +2759,7 @@ function renderRunners() {
             <button class="btn ${groupActive ? "danger" : "primary"}" data-group-runstop="${group.id}">
               ${escapeHtml(groupActive ? t("group_stop") : t("group_run"))}
             </button>
+            <button class="btn primary groupSaveBtn ${isGroupDirty ? "dirty" : ""}" data-save-group-name="${group.id}" ${isGroupDirty ? "" : `disabled title="${escapeHtml(t("no_changes"))}"`}>${escapeHtml(t("save"))}</button>
             <button class="btn danger" data-delgroup="${group.id}">${escapeHtml(t("remove"))}</button>
           </div>
         </div>
@@ -2364,18 +2768,21 @@ function renderRunners() {
       wrap.appendChild(groupDiv);
       const groupBody = groupDiv.querySelector(`[data-group-body="${group.id}"]`);
       const members = (group.runner_ids || [])
-        .map((rid) => findRunnerById(rid))
-        .filter((r) => !!r);
+        .map((rid) => ({ rid, runner: findRunnerById(rid) }))
+        .filter((entry) => !!entry.runner);
       if (!members.length) {
         const empty = document.createElement("p");
         empty.className = "hint";
         empty.textContent = t("group_empty");
         groupBody?.appendChild(empty);
       } else {
-        members.forEach((runner) => {
-          appendRunnerCard(groupBody, runner, {
+        members.forEach((entry) => {
+          appendRunnerCard(groupBody, entry.runner, {
             moveUpDisabled: false,
             moveDownDisabled: false,
+          }, {
+            groupId: group.id,
+            groupRunEnabled: isRunnerEnabledForGroupRun(group, entry.rid),
           });
         });
       }
@@ -2406,17 +2813,42 @@ function renderRunners() {
   });
 
   wrap.querySelectorAll("[data-group-name]").forEach((inp) => {
-    const saveGroup = async () => {
+    inp.addEventListener("input", () => {
       const gid = inp.getAttribute("data-group-name");
       const g = findGroupById(gid);
       if (!g) return;
       g.name = inp.value;
-      normalizeRunnerStructureState();
+      refreshRunnerGroupDirtyState(gid);
+      syncRunnerGroupDirtyButton(gid);
+    });
+  });
+
+  wrap.querySelectorAll("[data-save-group-name]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      await autoSave();
+    });
+  });
+
+  wrap.querySelectorAll("[data-group-member-toggle]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const gid = btn.getAttribute("data-group-member-toggle");
+      const rid = btn.getAttribute("data-group-member-runner");
+      const group = findGroupById(gid);
+      if (!group || !rid) return;
+      const memberRunnerIds = Array.isArray(group.runner_ids) ? group.runner_ids.slice() : [];
+      if (!memberRunnerIds.includes(rid)) return;
+      const disabled = new Set(Array.isArray(group.disabled_runner_ids) ? group.disabled_runner_ids : []);
+      if (disabled.has(rid)) {
+        disabled.delete(rid);
+      } else {
+        disabled.add(rid);
+      }
+      group.disabled_runner_ids = memberRunnerIds.filter((id) => disabled.has(id));
+      refreshRunnerGroupDirtyState(gid);
+      syncRunnerGroupDirtyButton(gid);
       renderRunners();
       await autoSave({ skipValidation: true });
-    };
-    inp.addEventListener("change", saveGroup);
-    inp.addEventListener("blur", saveGroup);
+    });
   });
 
   wrap.querySelectorAll("[data-move-group-up]").forEach((btn) => {
@@ -2728,7 +3160,13 @@ function renderRunners() {
           hulkFlash("error", t("group_empty"));
           return;
         }
-        for (const rid of group.runner_ids || []) {
+        const activeRunnerIds = activeRunnerIdsForGroup(group);
+        if (!activeRunnerIds.length) {
+          hulkFlash("error", t("group_no_active_runners"));
+          logHulk("error", t("group_no_active_runners"));
+          return;
+        }
+        for (const rid of activeRunnerIds) {
           const r = findRunnerById(rid);
           if (!r) continue;
           if (ui.dirtyRunners.has(rid) || isRunnerSaveBlocked(r)) {
@@ -3060,6 +3498,7 @@ function startEvents() {
           hulkFlash("error", msg, 5200);
         }
         renderRunners();
+        tickRunnerElapsed();
         return;
       }
 
@@ -3143,10 +3582,13 @@ async function autoSave(options = {}) {
     maskNotifySecretsInState();
     syncSavedNotifySignatures();
     syncSavedRunnerSignatures();
+    syncSavedRunnerGroupSignatures();
     clearAllDirtyNotifyProfiles();
     clearAllDirtyRunners();
+    clearAllDirtyRunnerGroups();
     syncAllNotifyDirtyButtons();
     syncAllDirtyButtons();
+    syncAllRunnerGroupDirtyButtons();
     logHulk("success", t("autosave_ok"));
     return true;
   } catch (e) {
@@ -3269,6 +3711,7 @@ async function wireUI() {
       id: gid,
       name: t("new_group_default_name"),
       runner_ids: [],
+      disabled_runner_ids: [],
       _collapsed: false,
     });
     state.runner_layout.push({ type: "group", id: gid });
