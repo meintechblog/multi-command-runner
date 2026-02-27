@@ -182,25 +182,28 @@ label span { display: block; font-size: 12px; opacity: 0.85; margin-bottom: 6px;
   gap: 12px;
   background: rgba(8, 22, 18, 0.58);
 }
-.groupTitleWrap {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.groupIdentity { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1; }
+.groupTitleRow { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: nowrap; }
+.groupTitleRow .toggle { flex: 0 0 auto; }
+.groupTitleRow input {
+  flex: 1 1 260px;
+  width: auto;
   min-width: 0;
-  flex: 1;
-}
-.groupTitleWrap input {
-  width: min(360px, 100%);
+  max-width: 360px;
   font-weight: 620;
   border-color: #2b6059;
   background: #102521;
 }
+.groupState { display: flex; align-items: flex-start; gap: 8px; min-height: 18px; width: 100%; }
 .groupStateText {
   color: #cdf5ec;
   opacity: 0.9;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .groupActions { justify-content: flex-end; }
 .groupBody {
@@ -210,6 +213,22 @@ label span { display: block; font-size: 12px; opacity: 0.85; margin-bottom: 6px;
 }
 .groupBody > .runner:first-child { margin-top: 0; }
 .groupBody > .runner:last-child { margin-bottom: 0; }
+.groupCard.is-dirty {
+  border-color: #5c4820;
+  box-shadow: inset 0 0 0 1px rgba(246, 166, 35, 0.2);
+  background: linear-gradient(180deg, rgba(246, 166, 35, 0.085) 0%, rgba(246, 166, 35, 0.03) 100%), linear-gradient(180deg, #10221f 0%, #0d1a18 100%);
+}
+.runner.is-group-disabled {
+  border-color: #3a4054;
+  background: linear-gradient(180deg, rgba(132, 141, 161, 0.12) 0%, rgba(132, 141, 161, 0.06) 100%), linear-gradient(180deg, #161a24 0%, #111723 100%);
+}
+.runner.is-group-disabled .runnerHead {
+  background: rgba(34, 39, 52, 0.62);
+}
+.runner.is-group-disabled .runnerBody {
+  background: #121823;
+  border-top-color: #2d3448;
+}
 .runner.is-dirty {
   border-color: #5c4820;
   box-shadow: inset 0 0 0 1px rgba(246, 166, 35, 0.2);
@@ -224,9 +243,12 @@ label span { display: block; font-size: 12px; opacity: 0.85; margin-bottom: 6px;
   background: rgba(8, 12, 22, 0.55);
 }
 .runnerIdentity { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1; }
-.runnerTitleRow { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap; }
+.runnerTitleRow { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: nowrap; }
 .runnerTitleRow input {
-  width: min(380px, 100%);
+  flex: 1 1 280px;
+  width: auto;
+  min-width: 0;
+  max-width: 380px;
   font-weight: 600;
   border-color: #31406c;
   background: #10172a;
@@ -248,9 +270,18 @@ label span { display: block; font-size: 12px; opacity: 0.85; margin-bottom: 6px;
   border-color: #2f4f8f;
   padding: 4px 8px;
 }
+.groupElapsed {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background: rgba(17, 43, 36, 0.55);
+  border-color: #2b6059;
+  padding: 4px 8px;
+}
 .runnerActions { justify-content: flex-end; }
 .notifyActions { justify-content: flex-end; }
 .runnerActions .btn { padding: 8px 10px; }
+.groupMemberToggleBtn { min-width: 126px; }
 .small { font-size: 12px; opacity: 0.75; }
 .spinner {
   position: relative;
@@ -297,8 +328,8 @@ label span { display: block; font-size: 12px; opacity: 0.85; margin-bottom: 6px;
 .check input { width: auto; }
 .toggle { user-select:none; cursor:pointer; padding: 6px 10px; border-radius: 10px; border:1px solid #2a355c; }
 .runnerBody { padding: 14px; border-top: 1px solid #1f2947; background: #0c1220; }
-.runnerSaveBtn, .notifySaveBtn { width: auto; }
-.runnerSaveBtn.dirty, .notifySaveBtn.dirty {
+.runnerSaveBtn, .notifySaveBtn, .groupSaveBtn { width: auto; }
+.runnerSaveBtn.dirty, .notifySaveBtn.dirty, .groupSaveBtn.dirty {
   border-color: #f6a623;
   background: #2a1d08;
   color: #ffdca1;
@@ -385,6 +416,7 @@ a.loglink { display:inline-block; margin-top:8px; font-size:12px; opacity:0.9; }
   background: linear-gradient(180deg, rgba(246, 166, 35, 0.075) 0%, rgba(246, 166, 35, 0.025) 100%), #0f1320;
 }
 .runnerTitleRow input.is-dirty,
+.groupTitleRow input.is-dirty,
 .notifyTitle input.is-dirty {
   border-color: #7a6124;
   box-shadow: inset 0 0 0 1px rgba(246, 166, 35, 0.24);
@@ -437,10 +469,14 @@ a.loglink { display:inline-block; margin-top:8px; font-size:12px; opacity:0.9; }
   .notifyActions { width: 100%; justify-content: flex-start; }
   .groupHead { flex-direction: column; align-items: stretch; }
   .groupActions { width: 100%; justify-content: flex-start; }
+  .groupTitleRow { flex-wrap: wrap; }
+  .groupTitleRow input { width: 100%; max-width: none; }
   .groupStateText { white-space: normal; }
   .runnerHead { flex-direction: column; align-items: stretch; }
   .runnerActions { width: 100%; justify-content: flex-start; }
-  .runnerTitleRow input { width: 100%; }
+  .runnerTitleRow { flex-wrap: wrap; }
+  .groupMemberToggleBtn { min-width: 0; }
+  .runnerTitleRow input { width: 100%; max-width: none; }
   .runnerNotifyRow { flex-direction: column; align-items: stretch; }
   .runnerNotifyName { white-space: normal; }
   .runnerNotifyActions { width: 100%; }

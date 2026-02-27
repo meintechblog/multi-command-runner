@@ -68,7 +68,8 @@ More installation details (including Proxmox LXC setup and sudo-safe install flo
 - Lock runner config fields while active (running/scheduled) (only notification assignment remains editable)
 - Stream live output via Server-Sent Events (SSE)
 - Detect regex-based cases and trigger notifications
-- Support semantic case states (`UP`, `DOWN`, `WARN`, `INFO`)
+- Support semantic case states (`UP`, `DOWN`, `WARN`, `INFO`, `STOP`)
+- Enable/disable individual group members for `Group Run` without removing them from the group
 - Support alert controls per runner:
   - `Alert-Cooldown`
   - `Eskalation`

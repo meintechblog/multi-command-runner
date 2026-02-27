@@ -37,7 +37,7 @@ import urllib.request
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import FastAPI, HTTPException, Request
@@ -332,7 +332,7 @@ class CaseRule(BaseModel):
     id: str = Field(default_factory=lambda: _new_id("case_"))
     pattern: str = ""
     message_template: str = ""
-    state: str = ""  # Optional semantic state like UP/DOWN/WARN/INFO
+    state: str = ""  # Optional semantic state like UP/DOWN/WARN/INFO/STOP
 
     @field_validator("id")
     @classmethod
@@ -415,6 +415,7 @@ class RunnerGroupConfig(BaseModel):
     id: str = Field(default_factory=lambda: _new_id("group_"))
     name: str = "Group"
     runner_ids: List[str] = Field(default_factory=list)
+    disabled_runner_ids: List[str] = Field(default_factory=list)
 
     @field_validator("id")
     @classmethod
@@ -423,7 +424,7 @@ class RunnerGroupConfig(BaseModel):
             raise ValueError("Invalid runner group id format")
         return value
 
-    @field_validator("runner_ids")
+    @field_validator("runner_ids", "disabled_runner_ids")
     @classmethod
     def validate_runner_ids(cls, values: List[str]) -> List[str]:
         cleaned: List[str] = []
@@ -1070,8 +1071,20 @@ class StateStore:
                     "id": gid,
                     "name": str(group.get("name", "Group") or "Group"),
                     "runner_ids": runner_ids,
+                    "disabled_runner_ids": [],
                 }
             )
+            disabled_runner_ids: List[str] = []
+            for raw_disabled_runner_id in (group.get("disabled_runner_ids") or []):
+                rid = str(raw_disabled_runner_id or "").strip()
+                if not _valid_safe_id(rid):
+                    continue
+                if rid not in runner_ids:
+                    continue
+                if rid in disabled_runner_ids:
+                    continue
+                disabled_runner_ids.append(rid)
+            sane_groups[-1]["disabled_runner_ids"] = disabled_runner_ids
         merged["runner_groups"] = sane_groups
 
         grouped_runner_ids: set[str] = set()
@@ -1160,7 +1173,7 @@ def now_iso() -> str:
 
 def normalize_case_state(value: str) -> str:
     s = (value or "").strip().upper()
-    if s in {"UP", "DOWN", "WARN", "INFO"}:
+    if s in {"UP", "DOWN", "WARN", "INFO", "STOP"}:
         return s
     return ""
 
@@ -1237,7 +1250,7 @@ class CompiledCase:
     pattern: str
     regex: re.Pattern
     message_template: str
-    state: str  # UP/DOWN/WARN/INFO or ""
+    state: str  # UP/DOWN/WARN/INFO/STOP or ""
 
 
 @dataclass(frozen=True)
@@ -1412,12 +1425,17 @@ class RunnerManager:
         self._last_exit_code: Dict[str, int] = {}
         self._last_finish_ts: Dict[str, str] = {}
         self._max_output_lines = MAX_OUTPUT_LINES_PER_RUN
+        self._group_stop_hook: Optional[Callable[[str, str], bool]] = None
 
         # Load persisted runtime status
         runtime_status = load_runtime_status()
         for runner_id, data in runtime_status.items():
             self._last_case[runner_id] = data.get("last_case", "")
             self._last_case_ts[runner_id] = data.get("last_case_ts", "")
+
+    def set_group_stop_hook(self, hook: Optional[Callable[[str, str], bool]]) -> None:
+        with self._lock:
+            self._group_stop_hook = hook
 
     def _append_output_line_locked(self, runner_id: str, line: str) -> None:
         lines = self._outputs.setdefault(runner_id, [])
@@ -1675,6 +1693,9 @@ class RunnerManager:
 
     def _resolve_stateful_notification(self, cfg: RunnerRuntimeConfig, case_state: str, message: str) -> Optional[str]:
         state = normalize_case_state(case_state)
+        if state == "STOP":
+            # STOP is an action state, not part of UP/DOWN alert escalation memory.
+            return message
         if not state:
             return message
 
@@ -1842,6 +1863,23 @@ class RunnerManager:
                     }
                 )
 
+                if c.state == "STOP":
+                    stop_hook: Optional[Callable[[str, str], bool]]
+                    with self._lock:
+                        stop_hook = self._group_stop_hook
+                    if stop_hook is not None:
+                        try:
+                            stop_hook(cfg.runner_id, msg)
+                        except Exception as e:
+                            self._broker.publish(
+                                {
+                                    "type": "case_error",
+                                    "runner_id": cfg.runner_id,
+                                    "pattern": c.pattern,
+                                    "error": f"STOP group trigger failed: {e}",
+                                }
+                            )
+
                 # Only notify if targets configured
                 notify_message = self._resolve_stateful_notification(cfg, c.state, msg)
                 if cfg.notify_targets and notify_message:
@@ -1995,6 +2033,21 @@ class GroupSequenceManager:
                 completed_count=0,
                 finished_ts=now_iso(),
             )
+
+    def stop_active_group_for_runner(self, runner_id: str, reason: str = "") -> bool:
+        target: Optional[Tuple[str, List[str], str]] = None
+        with self._lock:
+            for run in self._active.values():
+                if run.stop_event.is_set():
+                    continue
+                if run.current_runner_id == runner_id or runner_id in run.runner_ids:
+                    target = (run.group_id, list(run.runner_ids), run.group_name)
+                    break
+        if target is None:
+            return False
+        group_id, runner_ids, group_name = target
+        self.stop_group(group_id, runner_ids, group_name=group_name)
+        return True
 
     def _finish_run(
         self,
@@ -2168,9 +2221,10 @@ def resolve_group_for_state(state: AppState, group_id: str) -> Tuple[RunnerGroup
     if group is None:
         raise HTTPException(status_code=404, detail="Group not found")
     valid_runner_ids = {r.id for r in state.runners}
-    runner_ids = [rid for rid in group.runner_ids if rid in valid_runner_ids]
+    disabled_runner_ids = set(group.disabled_runner_ids or [])
+    runner_ids = [rid for rid in group.runner_ids if rid in valid_runner_ids and rid not in disabled_runner_ids]
     if not runner_ids:
-        raise HTTPException(status_code=400, detail="Group has no runners")
+        raise HTTPException(status_code=400, detail="Group has no active runners")
     return group, runner_ids
 
 
@@ -2180,6 +2234,7 @@ broker = EventBroker()
 notifier = NotificationWorker(broker, store)
 rm = RunnerManager(broker, notifier)
 gsm = GroupSequenceManager(rm, broker)
+rm.set_group_stop_hook(gsm.stop_active_group_for_runner)
 
 app = FastAPI(title="multi-command-runner", version="2.2.0")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -2455,12 +2510,20 @@ def clone_runner(req: CloneRunnerRequest) -> JSONResponse:
 
     if isinstance(source_group, dict):
         ids = [str(v).strip() for v in (source_group.get("runner_ids") or []) if _valid_safe_id(str(v).strip())]
+        disabled_ids = [str(v).strip() for v in (source_group.get("disabled_runner_ids") or []) if _valid_safe_id(str(v).strip())]
+        source_was_disabled = req.runner_id in disabled_ids
         if req.runner_id in ids:
             insert_at = ids.index(req.runner_id) + 1
             ids.insert(insert_at, clone_id)
         else:
             ids.append(clone_id)
         source_group["runner_ids"] = ids
+        if source_was_disabled:
+            disabled_set = set(disabled_ids)
+            disabled_set.add(clone_id)
+            source_group["disabled_runner_ids"] = [rid for rid in ids if rid in disabled_set]
+        else:
+            source_group["disabled_runner_ids"] = [rid for rid in ids if rid in set(disabled_ids)]
     else:
         inserted = False
         for i, item in enumerate(runner_layout):
@@ -2623,6 +2686,7 @@ async def import_runners(request: Request) -> JSONResponse:
             new_group_id = _new_id("group_")
             group_id_map[old_group_id] = new_group_id
             mapped_runner_ids: List[str] = []
+            old_disabled_runner_ids = [str(v).strip() for v in (group.get("disabled_runner_ids") or [])]
             for old_runner_id in group.get("runner_ids", []):
                 mapped_runner_id = runner_id_map.get(str(old_runner_id).strip(), "")
                 if not mapped_runner_id:
@@ -2633,11 +2697,22 @@ async def import_runners(request: Request) -> JSONResponse:
                     continue
                 mapped_runner_ids.append(mapped_runner_id)
                 assigned_group_runner_ids.add(mapped_runner_id)
+            mapped_disabled_runner_ids: List[str] = []
+            for old_disabled_runner_id in old_disabled_runner_ids:
+                mapped_disabled_runner_id = runner_id_map.get(old_disabled_runner_id, "")
+                if not mapped_disabled_runner_id:
+                    continue
+                if mapped_disabled_runner_id not in mapped_runner_ids:
+                    continue
+                if mapped_disabled_runner_id in mapped_disabled_runner_ids:
+                    continue
+                mapped_disabled_runner_ids.append(mapped_disabled_runner_id)
             mapped_groups.append(
                 {
                     "id": new_group_id,
                     "name": str(group.get("name", "Group") or "Group"),
                     "runner_ids": mapped_runner_ids,
+                    "disabled_runner_ids": mapped_disabled_runner_ids,
                 }
             )
 

@@ -8,13 +8,17 @@ All notable changes to this project will be documented in this file.
 
 - Chinese (`ZH`) UI language support in the language toggle.
 - Full Chinese UI translations including the Info modal content.
+- Added semantic case state `STOP` (action state) to trigger active Group-Run stop flows.
+- Added per-group member enable/disable toggle for Group-Run participation (without removing members from the group).
 
 ### Changed
 
 - UI language switch now cycles through `DE/EN/FR/ZH`.
+- Group-Run execution now respects `disabled_runner_ids`; clone/import flows preserve disabled member assignments.
 
 ### Fixed
 
+- Group/Multi-Runner title input alignment now stays stable next to the `+/-` toggle on desktop breakpoints.
 - Installer now detects and migrates legacy `command-runner` deployments to `multi-command-runner` automatically:
   - legacy path `/opt/command-runner` to `/opt/multi-command-runner`
   - legacy env keys `COMMAND_RUNNER_*` to `MULTI_COMMAND_RUNNER_*`
@@ -26,6 +30,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Installation and uninstall one-liners in docs now use `raw.githubusercontent.com/.../refs/heads/main/...` and include a cache-buster tip.
+- Instance endpoint docs now include a production SSH reliability note (`ConnectTimeout=60`).
 
 ## [2.2.0] - 2026-02-11
 

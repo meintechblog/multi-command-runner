@@ -118,7 +118,7 @@
             <ul>
               <li>Jeder Case prüft Output-Zeilen mit einem Regex-Pattern.</li>
               <li>Im Template können Gruppen genutzt werden: <code>{match}</code>, <code>{g1}</code>, <code>{g2}</code>, <code>{name}</code>.</li>
-              <li>Status je Case: <code>UP</code>, <code>DOWN</code>, <code>WARN</code>, <code>INFO</code> oder leer.</li>
+              <li>Status je Case: <code>UP</code>, <code>DOWN</code>, <code>WARN</code>, <code>INFO</code>, <code>STOP</code> oder leer.</li>
               <li>Leerer Fallback-Case (Pattern + Template leer) sendet bei Run-Ende die letzte Output-Zeile.</li>
             </ul>
             <h3>4) Alertsteuerung (pro Runner)</h3>
@@ -182,7 +182,7 @@
             <ul>
               <li>Each case checks output lines using a regex pattern.</li>
               <li>The template can use groups: <code>{match}</code>, <code>{g1}</code>, <code>{g2}</code>, <code>{name}</code>.</li>
-              <li>Status per case: <code>UP</code>, <code>DOWN</code>, <code>WARN</code>, <code>INFO</code> or empty.</li>
+              <li>Status per case: <code>UP</code>, <code>DOWN</code>, <code>WARN</code>, <code>INFO</code>, <code>STOP</code> or empty.</li>
               <li>An empty fallback case (empty pattern and template) sends the last output line when the run finishes.</li>
             </ul>
 
@@ -250,7 +250,7 @@
             <ul>
               <li>Chaque case vérifie les lignes de sortie avec un motif regex.</li>
               <li>Le template peut utiliser des groupes: <code>{match}</code>, <code>{g1}</code>, <code>{g2}</code>, <code>{name}</code>.</li>
-              <li>Statut par case: <code>UP</code>, <code>DOWN</code>, <code>WARN</code>, <code>INFO</code> ou vide.</li>
+              <li>Statut par case: <code>UP</code>, <code>DOWN</code>, <code>WARN</code>, <code>INFO</code>, <code>STOP</code> ou vide.</li>
               <li>Un case fallback vide (pattern et template vides) envoie la dernière ligne de sortie à la fin du run.</li>
             </ul>
 
@@ -318,7 +318,7 @@
             <ul>
               <li>每个规则会用正则表达式检查输出行。</li>
               <li>模板可使用分组：<code>{match}</code>、<code>{g1}</code>、<code>{g2}</code>、<code>{name}</code>。</li>
-              <li>每条规则的状态可设为：<code>UP</code>、<code>DOWN</code>、<code>WARN</code>、<code>INFO</code> 或留空。</li>
+              <li>每条规则的状态可设为：<code>UP</code>、<code>DOWN</code>、<code>WARN</code>、<code>INFO</code>、<code>STOP</code> 或留空。</li>
               <li>空的兜底规则（pattern 和 template 为空）会在运行结束时发送最后一行输出。</li>
             </ul>
 
