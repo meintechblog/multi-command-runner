@@ -166,6 +166,18 @@ Syntax check:
 python3 -m py_compile app/main.py
 ```
 
+Runtime/UI regression checks:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install fastapi==0.128.6 jinja2==3.1.6 pydantic==2.12.5 cryptography==46.0.5
+.venv/bin/python -m unittest tests.test_runtime_regressions -v
+node --test tests/app_runtime_helpers.test.js
+node --check static/app.js
+node --check static/app_runtime_helpers.js
+```
+
 ## License
 
 MIT License. See `LICENSE`.

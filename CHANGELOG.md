@@ -10,15 +10,25 @@ All notable changes to this project will be documented in this file.
 - Full Chinese UI translations including the Info modal content.
 - Added semantic case state `STOP` (action state) to trigger active Group-Run stop flows.
 - Added per-group member enable/disable toggle for Group-Run participation (without removing members from the group).
+- Added runtime/UI stabilization design and implementation docs under `docs/plans/`.
+- Added regression coverage for runtime cleanup, group-run one-shot execution, delayed status timers, and bounded browser-side buffers.
+- Added shared frontend runtime helpers for delayed-status timer handling and bounded output/event retention.
 
 ### Changed
 
 - UI language switch now cycles through `DE/EN/FR/ZH`.
 - Group-Run execution now respects `disabled_runner_ids`; clone/import flows preserve disabled member assignments.
+- Group-Run now starts member runners as one-shot executions, so runner-local schedules no longer block the sequence.
+- Runtime status persistence is now throttled instead of rewriting `runtime_status.json` on every case match.
+- Developer verification docs now include the Python and Node regression checks used for runtime/UI stabilization.
 
 ### Fixed
 
 - Group/Multi-Runner title input alignment now stays stable next to the `+/-` toggle on desktop breakpoints.
+- Deleting a runner now removes stale live scheduler/runtime state instead of leaving background scheduling artifacts behind.
+- Failed subprocess starts no longer consume scheduled run counters.
+- Stale delayed-status timers in the UI no longer clear a freshly restarted runner.
+- Browser-side runner output and the events pane are now bounded to prevent unbounded memory growth during long sessions.
 - Installer now detects and migrates legacy `command-runner` deployments to `multi-command-runner` automatically:
   - legacy path `/opt/command-runner` to `/opt/multi-command-runner`
   - legacy env keys `COMMAND_RUNNER_*` to `MULTI_COMMAND_RUNNER_*`

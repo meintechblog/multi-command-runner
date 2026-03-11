@@ -11,8 +11,13 @@ const runtime = {
   status: {},
   groupStatus: {},
   outputs: {},
+  delayedStatusTimers: {},
   spinnerStartTimes: {},
 };
+
+const RuntimeHelpers = globalThis.AppRuntimeHelpers || {};
+const RUNNER_OUTPUT_MAX_CHARS = RuntimeHelpers.DEFAULT_RUNNER_OUTPUT_MAX_CHARS || 200000;
+const EVENTS_MAX_CHARS = RuntimeHelpers.DEFAULT_EVENTS_MAX_CHARS || 120000;
 
 const UI_STORAGE_KEY = "multi-command-runner.ui";
 const MASKED_SECRET = "__SECRET_SET__";
@@ -1285,7 +1290,12 @@ function formatDateTime(isoString) {
 
 function appendEvents(text) {
   const out = el("events");
-  out.textContent += text;
+  if (!out) return;
+  if (RuntimeHelpers.appendEventText) {
+    out.textContent = RuntimeHelpers.appendEventText(out.textContent || "", text, { maxChars: EVENTS_MAX_CHARS });
+  } else {
+    out.textContent += text;
+  }
   out.scrollTop = out.scrollHeight;
 }
 
@@ -2713,7 +2723,10 @@ function renderRunners() {
 
     renderCasesForRunner(r.id);
     const out = runnerOutputEl(r.id);
-    if (out) out.textContent = runtime.outputs[r.id] || (rt.tail || "");
+    if (out) {
+      const hasBufferedOutput = Object.prototype.hasOwnProperty.call(runtime.outputs, r.id);
+      out.textContent = hasBufferedOutput ? (runtime.outputs[r.id] || "") : (rt.tail || "");
+    }
   };
 
   state.runner_layout.forEach((item, layoutIdx) => {
@@ -3086,6 +3099,9 @@ function renderRunners() {
       removeRunnerFromGroups(rid);
       removeRunnerFromLayout(rid);
       normalizeRunnerStructureState();
+      clearDelayedStatusTimer(rid);
+      delete runtime.delayedStatusTimers[rid];
+      delete runtime.spinnerStartTimes[rid];
       delete runtime.status[rid];
       delete runtime.outputs[rid];
       renderRunners();
@@ -3124,7 +3140,7 @@ function renderRunners() {
             syncRunnerDirtyButton(rid);
             return;
           }
-          runtime.outputs[rid] = "";
+          resetRunnerOutputBuffer(rid);
           const out = runnerOutputEl(rid);
           if (out) out.textContent = "";
           await apiPost("/api/run", { state: collectState(), runner_id: rid });
@@ -3349,28 +3365,77 @@ function handleBeforeUnload(ev) {
   return warning;
 }
 
+function clearDelayedStatusTimer(rid) {
+  if (RuntimeHelpers.clearDelayedStatusTimer) {
+    RuntimeHelpers.clearDelayedStatusTimer(runtime, rid);
+    return;
+  }
+  const handle = runtime.delayedStatusTimers[rid];
+  if (handle) {
+    clearTimeout(handle);
+    delete runtime.delayedStatusTimers[rid];
+  }
+}
+
 function delayedStatusUpdate(rid, updateFn, minSpinnerMs = 500) {
+  if (RuntimeHelpers.scheduleDelayedStatusUpdate) {
+    RuntimeHelpers.scheduleDelayedStatusUpdate(runtime, rid, updateFn, { minSpinnerMs });
+    return;
+  }
   const startTime = runtime.spinnerStartTimes[rid];
   if (!startTime) {
-    // No start time recorded, update immediately
     updateFn();
     return;
   }
-
   const elapsed = Date.now() - startTime;
   const remaining = minSpinnerMs - elapsed;
-
   if (remaining > 0) {
-    // Delay the update to ensure minimum spinner duration
-    setTimeout(() => {
+    clearDelayedStatusTimer(rid);
+    runtime.delayedStatusTimers[rid] = setTimeout(() => {
       delete runtime.spinnerStartTimes[rid];
+      delete runtime.delayedStatusTimers[rid];
       updateFn();
     }, remaining);
-  } else {
-    // Enough time has passed, update immediately
-    delete runtime.spinnerStartTimes[rid];
-    updateFn();
+    return;
   }
+  delete runtime.spinnerStartTimes[rid];
+  updateFn();
+}
+
+function resetRunnerOutputBuffer(rid) {
+  if (RuntimeHelpers.resetRunnerOutput) {
+    RuntimeHelpers.resetRunnerOutput(runtime, rid);
+    return;
+  }
+  runtime.outputs[rid] = "";
+}
+
+function appendRunnerOutputBuffer(rid, line) {
+  if (RuntimeHelpers.appendRunnerOutput) {
+    return RuntimeHelpers.appendRunnerOutput(runtime, rid, line, { maxChars: RUNNER_OUTPUT_MAX_CHARS });
+  }
+  runtime.outputs[rid] = (runtime.outputs[rid] || "") + line;
+  return runtime.outputs[rid];
+}
+
+function computeRunnerStateText(rt) {
+  const statusPrefix = rt.paused ? `⏸ (${Math.max(0, Number(rt.consecutive_failures || 0))}) ` : "";
+  const parts = [];
+  if (rt.paused) {
+    parts.push(t("runner_auto_pause_state", { n: Math.max(0, Number(rt.consecutive_failures || 0)) }));
+  }
+  if (rt.last_case) {
+    parts.push(`${formatTime(rt.last_case_ts)}: ${rt.last_case}`);
+  }
+  return `${statusPrefix}${parts.join(" | ")}`.trim();
+}
+
+function syncRunnerStateText(rid) {
+  const card = document.querySelector(`.runner[data-runner-id="${rid}"]`);
+  if (!card) return;
+  const textNode = card.querySelector(".runnerStateText");
+  if (!textNode) return;
+  textNode.textContent = computeRunnerStateText(runtime.status[rid] || {});
 }
 
 function startEvents() {
@@ -3408,6 +3473,8 @@ function startEvents() {
           runtime.status[rid].consecutive_failures = Number(ev.consecutive_failures || 0);
         }
         if (ev.status === "started") {
+          clearDelayedStatusTimer(rid);
+          resetRunnerOutputBuffer(rid);
           runtime.spinnerStartTimes[rid] = Date.now();
           runtime.status[rid].running = true;
           runtime.status[rid].scheduled = false;
@@ -3446,12 +3513,14 @@ function startEvents() {
             updateGlobalRunningStatus();
           });
         } else if (ev.status === "scheduled") {
+          clearDelayedStatusTimer(rid);
           runtime.status[rid].scheduled = true;
           logHulk("info", t("run_scheduled", { rid, sec: ev.in_s }), ev.ts);
           renderRunners();
           tickRunnerElapsed();
           updateGlobalRunningStatus();
         } else if (ev.status === "paused") {
+          clearDelayedStatusTimer(rid);
           runtime.status[rid].running = false;
           runtime.status[rid].scheduled = false;
           runtime.status[rid].paused = true;
@@ -3504,10 +3573,12 @@ function startEvents() {
 
       if (ev.type === "output") {
         const rid = ev.runner_id;
-        runtime.outputs[rid] = (runtime.outputs[rid] || "") + ev.line;
+        const previousOutput = runtime.outputs[rid] || "";
+        const nextOutput = appendRunnerOutputBuffer(rid, ev.line);
         const out = runnerOutputEl(rid);
         if (out) {
-          out.textContent += ev.line;
+          const appended = nextOutput.length === previousOutput.length + ev.line.length && nextOutput.startsWith(previousOutput);
+          out.textContent = appended ? `${out.textContent}${ev.line}` : nextOutput;
           out.scrollTop = out.scrollHeight;
         }
         return;
@@ -3520,7 +3591,7 @@ function startEvents() {
         runtime.status[rid].last_case = ev.message;
         runtime.status[rid].last_case_ts = ev.ts;
         logHulk("success", `${rid}: CASE MATCH -> ${ev.message}`, ev.ts);
-        renderRunners();
+        syncRunnerStateText(rid);
         return;
       }
 

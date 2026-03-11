@@ -59,6 +59,7 @@ MAX_TOTAL_RUNNERS = max(MAX_IMPORTED_RUNNERS, int(os.environ.get("MAX_TOTAL_RUNN
 MAX_CASES_PER_RUNNER = max(1, int(os.environ.get("MAX_CASES_PER_RUNNER", "200")))
 MAX_SSE_SUBSCRIBERS = max(1, int(os.environ.get("MAX_SSE_SUBSCRIBERS", "100")))
 MAX_OUTPUT_LINES_PER_RUN = max(200, int(os.environ.get("MAX_OUTPUT_LINES_PER_RUN", "5000")))
+RUNTIME_STATUS_SAVE_INTERVAL_S = max(0.25, float(os.environ.get("RUNTIME_STATUS_SAVE_INTERVAL_S", "1.0")))
 
 AUTH_USER = os.environ.get("MULTI_COMMAND_RUNNER_AUTH_USER", "").strip()
 AUTH_PASSWORD = os.environ.get("MULTI_COMMAND_RUNNER_AUTH_PASSWORD", "").strip()
@@ -1426,6 +1427,8 @@ class RunnerManager:
         self._last_finish_ts: Dict[str, str] = {}
         self._max_output_lines = MAX_OUTPUT_LINES_PER_RUN
         self._group_stop_hook: Optional[Callable[[str, str], bool]] = None
+        self._runtime_status_dirty = False
+        self._last_runtime_status_save_monotonic = 0.0
 
         # Load persisted runtime status
         runtime_status = load_runtime_status()
@@ -1491,8 +1494,12 @@ class RunnerManager:
         """
         with self._lock:
             managed_ids = list(self._cfg.keys())
+        valid_runner_ids = {runner.id for runner in state.runners}
+        removed = self._purge_removed_runners(valid_runner_ids)
 
         if not managed_ids:
+            if removed:
+                self._flush_runtime_status(force=True)
             return
 
         refreshed: Dict[str, RunnerRuntimeConfig] = {}
@@ -1508,22 +1515,84 @@ class RunnerManager:
                 )
 
         if not refreshed:
+            if removed:
+                self._flush_runtime_status(force=True)
             return
 
         with self._lock:
             for rid, cfg in refreshed.items():
                 self._cfg[rid] = cfg
+        if removed:
+            self._flush_runtime_status(force=True)
 
-    def _save_runtime_status(self) -> None:
-        """Persist runtime status (last_case and last_case_ts) to disk."""
+    def _collect_runtime_status_locked(self) -> Dict[str, Dict[str, str]]:
+        status = {}
+        for runner_id in set(self._last_case.keys()) | set(self._last_case_ts.keys()):
+            status[runner_id] = {
+                "last_case": self._last_case.get(runner_id, ""),
+                "last_case_ts": self._last_case_ts.get(runner_id, ""),
+            }
+        return status
+
+    def _mark_runtime_status_dirty(self) -> None:
         with self._lock:
-            status = {}
-            for runner_id in set(self._last_case.keys()) | set(self._last_case_ts.keys()):
-                status[runner_id] = {
-                    "last_case": self._last_case.get(runner_id, ""),
-                    "last_case_ts": self._last_case_ts.get(runner_id, ""),
-                }
-            save_runtime_status(status)
+            self._runtime_status_dirty = True
+
+    def _flush_runtime_status(self, *, force: bool = False) -> None:
+        now_monotonic = time.monotonic()
+        with self._lock:
+            if not self._runtime_status_dirty:
+                return
+            if not force and (now_monotonic - self._last_runtime_status_save_monotonic) < RUNTIME_STATUS_SAVE_INTERVAL_S:
+                return
+            status = self._collect_runtime_status_locked()
+            self._runtime_status_dirty = False
+            self._last_runtime_status_save_monotonic = now_monotonic
+        save_runtime_status(status)
+
+    def _purge_runner_state_locked(self, runner_id: str) -> Optional[subprocess.Popen]:
+        timer = self._timers.pop(runner_id, None)
+        if timer:
+            timer.cancel()
+        proc = self._procs.pop(runner_id, None)
+        self._cfg.pop(runner_id, None)
+        self._started_ts.pop(runner_id, None)
+        self._active_ts.pop(runner_id, None)
+        self._outputs.pop(runner_id, None)
+        self._last_line.pop(runner_id, None)
+        self._stopped.pop(runner_id, None)
+        self._remaining.pop(runner_id, None)
+        self._run_count.pop(runner_id, None)
+        self._last_case.pop(runner_id, None)
+        self._last_case_ts.pop(runner_id, None)
+        self._alert_state.pop(runner_id, None)
+        self._last_alert_notify_ts.pop(runner_id, None)
+        self._consecutive_failures.pop(runner_id, None)
+        self._paused_due_failures.pop(runner_id, None)
+        self._last_exit_code.pop(runner_id, None)
+        self._last_finish_ts.pop(runner_id, None)
+        self._runtime_status_dirty = True
+        return proc
+
+    def _purge_removed_runners(self, valid_runner_ids: set[str]) -> List[str]:
+        removed: List[str] = []
+        procs_to_stop: List[subprocess.Popen] = []
+        with self._lock:
+            tracked_ids = (
+                set(self._cfg.keys())
+                | set(self._timers.keys())
+                | set(self._last_case.keys())
+                | set(self._last_case_ts.keys())
+            )
+            stale_ids = sorted(rid for rid in tracked_ids if rid not in valid_runner_ids)
+            for rid in stale_ids:
+                proc = self._purge_runner_state_locked(rid)
+                if proc is not None and proc.poll() is None:
+                    procs_to_stop.append(proc)
+                removed.append(rid)
+        for proc in procs_to_stop:
+            self._terminate_clean(proc)
+        return removed
 
     def stop(self, runner_id: str) -> None:
         proc: Optional[subprocess.Popen]
@@ -1580,20 +1649,30 @@ class RunnerManager:
                 self._run_count[cfg.runner_id] = self._run_count.get(cfg.runner_id, 0) + 1
 
             rem = self._remaining.get(cfg.runner_id)
+            previous_remaining = rem
             if rem is not None:
                 if rem <= 0:
                     return
                 self._remaining[cfg.runner_id] = rem - 1
 
-            self._procs[cfg.runner_id] = subprocess.Popen(
-                ["bash", "-lc", cfg.command],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                universal_newlines=True,
-                start_new_session=True,
-            )
+            try:
+                self._procs[cfg.runner_id] = subprocess.Popen(
+                    ["bash", "-lc", cfg.command],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True,
+                    start_new_session=True,
+                )
+            except Exception:
+                if rem is not None:
+                    self._remaining[cfg.runner_id] = previous_remaining
+                if reset_schedule:
+                    self._run_count[cfg.runner_id] = 0
+                else:
+                    self._run_count[cfg.runner_id] = max(0, self._run_count.get(cfg.runner_id, 1) - 1)
+                raise
 
             started_ts = now_iso()
             self._started_ts[cfg.runner_id] = started_ts
@@ -1644,6 +1723,7 @@ class RunnerManager:
             if cfg is None:
                 return
             rem = self._remaining.get(runner_id)
+            previous_remaining = rem
             if rem is not None:
                 if rem <= 0:
                     return
@@ -1656,15 +1736,21 @@ class RunnerManager:
             self._outputs[runner_id] = []
             self._last_line[runner_id] = ""
             self._stopped[runner_id] = False
-            self._procs[runner_id] = subprocess.Popen(
-                ["bash", "-lc", cfg.command],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                universal_newlines=True,
-                start_new_session=True,
-            )
+            try:
+                self._procs[runner_id] = subprocess.Popen(
+                    ["bash", "-lc", cfg.command],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True,
+                    start_new_session=True,
+                )
+            except Exception:
+                if rem is not None:
+                    self._remaining[runner_id] = previous_remaining
+                self._run_count[runner_id] = max(0, self._run_count.get(runner_id, 1) - 1)
+                raise
             current_run_count = self._run_count.get(runner_id, 0)
             current_remaining = self._remaining.get(runner_id)
             started_ts = now_iso()
@@ -1773,7 +1859,8 @@ class RunnerManager:
                     self._last_case[runner_id] = msg
                     self._last_case_ts[runner_id] = ts
 
-                self._save_runtime_status()
+                self._mark_runtime_status_dirty()
+                self._flush_runtime_status(force=True)
                 self._broker.publish({"type": "case_match", "runner_id": runner_id, "pattern": "__on_finish__", "message": msg, "ts": ts})
 
                 if current_cfg.notify_targets:
@@ -1848,8 +1935,8 @@ class RunnerManager:
                     self._last_case[cfg.runner_id] = msg
                     self._last_case_ts[cfg.runner_id] = ts
 
-                # Persist runtime status to disk
-                self._save_runtime_status()
+                self._mark_runtime_status_dirty()
+                self._flush_runtime_status()
 
                 # Always publish for UI
                 self._broker.publish(
@@ -2095,7 +2182,7 @@ class GroupSequenceManager:
                 )
 
                 try:
-                    cfg = compile_runner_cfg(state, runner_id, self._broker)
+                    cfg = compile_runner_cfg(state, runner_id, self._broker, force_one_shot=True)
                     self._runner_manager.start(cfg, reset_schedule=True)
                 except HTTPException as e:
                     self._finish_run(run, status="error", error=f"Could not start runner {runner_id}: {e.detail}")
@@ -2146,7 +2233,13 @@ class GroupSequenceManager:
             self._finish_run(run, status="error", error=f"Group sequence crashed: {e}")
 
 
-def compile_runner_cfg(state: AppState, runner_id: str, broker: EventBroker) -> RunnerRuntimeConfig:
+def compile_runner_cfg(
+    state: AppState,
+    runner_id: str,
+    broker: EventBroker,
+    *,
+    force_one_shot: bool = False,
+) -> RunnerRuntimeConfig:
     runner = next((r for r in state.runners if r.id == runner_id), None)
     if runner is None:
         raise HTTPException(status_code=404, detail="Runner not found")
@@ -2182,6 +2275,9 @@ def compile_runner_cfg(state: AppState, runner_id: str, broker: EventBroker) -> 
     max_runs = int(runner.max_runs)
     if max_runs != -1:
         max_runs = max(1, min(100, max_runs))
+    if force_one_shot:
+        interval_s = 0
+        max_runs = 1
 
     # Resolve notify profiles
     notify_targets: List[NotifyTarget] = []
@@ -2265,8 +2361,9 @@ async def auth_middleware(request: Request, call_next):
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request) -> HTMLResponse:
     app_js = BASE_DIR / "static" / "app.js"
+    helper_js = BASE_DIR / "static" / "app_runtime_helpers.js"
     style_css = BASE_DIR / "static" / "style.css"
-    asset_version = int(max(app_js.stat().st_mtime, style_css.stat().st_mtime))
+    asset_version = int(max(app_js.stat().st_mtime, helper_js.stat().st_mtime, style_css.stat().st_mtime))
     return templates.TemplateResponse(
         "index.html",
         {
