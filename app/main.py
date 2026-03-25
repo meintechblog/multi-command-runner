@@ -304,9 +304,9 @@ fi
             ],
         },
         {
-            "id": "runner_ping_192_168_3_1",
-            "name": "Ping 192.168.3.1 Demo",
-            "command": "curl -sS --max-time 2 http://192.168.3.1 >/dev/null && echo OK || echo FAIL",
+            "id": "runner_ping_example",
+            "name": "Ping Example Host Demo",
+            "command": "curl -sS --max-time 2 http://<your-host-ip> >/dev/null && echo OK || echo FAIL",
             "logging_enabled": True,
             "schedule": {"hours": 0, "minutes": 0, "seconds": 5},
             "max_runs": -1,
@@ -316,15 +316,15 @@ fi
             "notify_profile_ids": [],
             "notify_profile_updates_only": [],
             "cases": [
-                {"id": "case_ping_ok", "pattern": r"OK", "message_template": "192.168.3.1 ist erreichbar", "state": ""},
-                {"id": "case_ping_fail", "pattern": r"FAIL", "message_template": "192.168.3.1 ist NICHT erreichbar", "state": ""},
+                {"id": "case_ping_ok", "pattern": r"OK", "message_template": "Host ist erreichbar", "state": ""},
+                {"id": "case_ping_fail", "pattern": r"FAIL", "message_template": "Host ist NICHT erreichbar", "state": ""},
             ],
         }
     ],
     "runner_groups": [],
     "runner_layout": [
         {"type": "runner", "id": "runner1"},
-        {"type": "runner", "id": "runner_ping_192_168_3_1"},
+        {"type": "runner", "id": "runner_ping_example"},
     ],
 }
 
